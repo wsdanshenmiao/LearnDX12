@@ -1,10 +1,15 @@
+# Xmake cache
+.xmake/
+build/
+
+# MacOS Cache
+.DS_Store
 Debug/
 Release/
 x64/
 .git/
 .vs/
 .vscode/
-build/
 backup/
 lib/
 *.cso
@@ -19,3 +24,5 @@ lib/
 *.lastcodeanalysissucceeded
 !dxtex.exe
 *.exe
+vsxmake2022/
+
