@@ -51,7 +51,8 @@ namespace DSM {
 		m_CurrFRIndex = (m_CurrFRIndex + 1) % FrameCount;
 		m_CurrFrameResource = m_FrameResources[m_CurrFRIndex].get();
 
-		// 若CPU过快，可能会超前一个循环，此时需要CPU等待
+		// 若CPU过快，可能会超前一个循环，此时需要CPU等待,
+		// GetCompletedValue()获取当前的栅栏值
 		if (m_CurrFrameResource->m_Fence != 0 &&
 			m_D3D12Fence->GetCompletedValue() < m_CurrFrameResource->m_Fence) {
 			WaitForGPU();

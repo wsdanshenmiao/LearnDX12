@@ -13,7 +13,7 @@ end
 
 add_rules("mode.debug", "mode.release")
 
-set_languages("c99", "c++20")
+set_languages("c99", "cxx20")
 set_toolchains("msvc")
 set_encodings("utf-8")
 
@@ -46,4 +46,4 @@ includes("DrawBox")
 includes("Shapes")
 includes("LandAndWave")
 includes("Light")
-
+includes("Texturing")

@@ -36,7 +36,7 @@ namespace DSM {
 	bool BaseImGuiManager<Driver>::InitImGui(
 		ID3D12Device* device,
 		HWND hMainWnd,
-		int bufferCount,
+		int frameCount,
 		DXGI_FORMAT bufferFormat)
 	{
 		IMGUI_CHECKVERSION();
@@ -57,7 +57,7 @@ namespace DSM {
 		ImGui_ImplWin32_Init(hMainWnd);
 		ImGui_ImplDX12_Init(
 			device,
-			bufferCount,
+			frameCount,
 			bufferFormat,
 			m_ImGuiSrvHeap.Get(),
 			m_ImGuiSrvHeap->GetCPUDescriptorHandleForHeapStart(),
