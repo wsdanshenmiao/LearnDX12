@@ -1,10 +1,11 @@
-#include "TexturingApp.h"
+#include "LandAndWaveWithTexture.h"
 #include "ImguiManager.h"
 #include "Vertex.h"
-#include "MeshManager.h"
+#include "ModelManager.h"
 #include "ConstantData.h"
 #include "DDSTextureLoader12.h"
 #include "LightManager.h"
+#include "ObjectManager.h"
 
 using namespace DirectX;
 using namespace DSM::Geometry;
@@ -24,6 +25,8 @@ namespace DSM {
 
 		// 注意初始化顺序
 		LightManager::Create(m_D3D12Device.Get(), FrameCount);
+		ObjectManager::Create(FrameCount);
+		ModelManager::Create();
 
 		if (!InitResource()) {
 			return false;
@@ -56,8 +59,8 @@ namespace DSM {
 		// Update
 		ImguiManager::GetInstance().Update(timer);
 		UpdateFrameResource(timer);
-		UpdateGeometry(timer);
 		LightManager::GetInstance().UpdateLight();
+		UpdateObjCB(timer);
 	}
 
 	void LandAndWaveWithTexture::OnRender(const CpuTimer& timer)
@@ -142,27 +145,15 @@ namespace DSM {
 		auto& [passName, passConstant] = *constBuffers.find("PassConstants");
 		m_CommandList->SetGraphicsRootConstantBufferView(1, passConstant->GetResource()->GetGPUVirtualAddress());
 
-		auto lights = LightManager::GetInstance().GetLightsResource();
-		m_CommandList->SetGraphicsRootConstantBufferView(2, lights->GetGPUVirtualAddress());
+		auto lightAddress = LightManager::GetInstance().GetGPUVirtualAddress();
+		m_CommandList->SetGraphicsRootConstantBufferView(2, lightAddress);
 
-		for (const auto& [meshName, meshData] : m_MeshData) {
-			auto vertexBV = meshData->GetVertexBufferView();
-			auto indexBV = meshData->GetIndexBufferView();
-			m_CommandList->IASetVertexBuffers(0, 1, &vertexBV);
-			m_CommandList->IASetIndexBuffer(&indexBV);
+		auto& [materialName, materialConstant] = *constBuffers.find("MaterialConstants");
+		m_CommandList->SetGraphicsRootConstantBufferView(3, materialConstant->GetResource()->GetGPUVirtualAddress());
 
-			auto& [objName, objConstant] = *constBuffers.find("ObjectConstants");
-			m_CommandList->SetGraphicsRootConstantBufferView(0, objConstant->GetResource()->GetGPUVirtualAddress());
+		m_CommandList->SetGraphicsRootDescriptorTable(4, m_TexDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
 
-			auto& [materialName, materialConstant] = *constBuffers.find("MaterialConstants");
-			m_CommandList->SetGraphicsRootConstantBufferView(3, materialConstant->GetResource()->GetGPUVirtualAddress());
-
-			m_CommandList->SetGraphicsRootDescriptorTable(4, m_TexDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
-
-			for (const auto& [name, drawItem] : meshData->m_DrawArgs) {
-				m_CommandList->DrawIndexedInstanced(drawItem.m_IndexCount, 1, drawItem.m_StarIndexLocation, drawItem.m_BaseVertexLocation, 0);
-			}
-		}
+		ObjectManager::GetInstance().RenderObjects<VertexPosLNormalTex>(m_CommandList.Get(), 0);
 	}
 
 	bool LandAndWaveWithTexture::InitResource()
@@ -190,21 +181,13 @@ namespace DSM {
 
 	void LandAndWaveWithTexture::CreateShader()
 	{
-		auto& lightManager = LightManager::GetInstance();
-		auto dirCount = std::to_string(lightManager.GetDirLightCount());
-		auto pointCount = std::to_string(lightManager.GetPointLightCount());
-		auto spotCount = std::to_string(lightManager.GetSpotLightCount());
-		D3D_SHADER_MACRO shaderMacor[] = {
-			{"MAXDIRLIGHTCOUNT", dirCount.c_str()},
-			{"MAXPOINTLIGHTCOUNT", pointCount.c_str()},
-			{"MAXSPOTLIGHTCOUNT", spotCount.c_str()},
-			{nullptr, nullptr}	// 充当结束标志
-		};
+		auto shaderMacor = LightManager::GetInstance().GetLightsShaderMacros(
+			"MAXDIRLIGHTCOUNT", "MAXPOINTLIGHTCOUNT", "MAXSPOTLIGHTCOUNT");
 
-		auto colorVS = D3DUtil::CompileShader(L"Shaders\\Color.hlsl", nullptr, "VS", "vs_5_1");
-		auto colorPS = D3DUtil::CompileShader(L"Shaders\\Color.hlsl", nullptr, "PS", "ps_5_1");
-		auto lightVS = D3DUtil::CompileShader(L"Shaders\\Light.hlsl", nullptr, "VS", "vs_5_1");
-		auto lightPS = D3DUtil::CompileShader(L"Shaders\\Light.hlsl", nullptr, "PS", "ps_5_1");
+		auto colorVS = D3DUtil::CompileShader(L"Shaders\\Color.hlsl", shaderMacor.data(), "VS", "vs_5_1");
+		auto colorPS = D3DUtil::CompileShader(L"Shaders\\Color.hlsl", shaderMacor.data(), "PS", "ps_5_1");
+		auto lightVS = D3DUtil::CompileShader(L"Shaders\\Light.hlsl", shaderMacor.data(), "VS", "vs_5_1");
+		auto lightPS = D3DUtil::CompileShader(L"Shaders\\Light.hlsl", shaderMacor.data(), "PS", "ps_5_1");
 
 		m_ShaderByteCode.insert(std::make_pair("ColorVS", colorVS));
 		m_ShaderByteCode.insert(std::make_pair("ColorPS", colorPS));
@@ -217,30 +200,31 @@ namespace DSM {
 	/// </summary>
 	void LandAndWaveWithTexture::CreateObject()
 	{
-		auto boxMesh = GeometryGenerator::CreateBox(10, 10, 10, 1);
-		SubmeshData submeshData{};
-		submeshData.m_IndexCount = boxMesh.m_Indices32.size();
-		submeshData.m_BaseVertexLocation = 0;
-		submeshData.m_StarIndexLocation = 0;
+		auto& modelManager = ModelManager::GetInstance();
+		auto& objManager = ObjectManager::GetInstance();
+		
+		const Model* model = modelManager.LoadModelFromeFile("Elena", "Models\\Elena.obj");
+		auto elena = std::make_shared<Object>(model->GetName(), model);
+		elena->GetTransform().SetScale({5,5,5});
+		elena->GetTransform().SetPosition({0,-50,0});
+		objManager.AddObject(elena);
 
+		objManager.CreateObjectsResource<ObjectConstants>(m_D3D12Device.Get());
+
+		// 提前为所有模型生成网格数据
 		auto vertFunc = [](const Vertex& vert) {
 			VertexPosLNormalTex ret{};
 			ret.m_Normal = vert.m_Normal;
 			ret.m_Pos = vert.m_Position;
 			ret.m_TexCoord = vert.m_TexCoord;
 			return ret;
-			};
-
-		auto& meshManager = ModelManager::GetInstance();
-		meshManager.AddMesh("Box", std::move(boxMesh));
-		m_MeshData["Box"] = meshManager.GetAllMeshData<VertexPosLNormalTex>(
-			m_D3D12Device.Get(), m_CommandList.Get(), "Box", vertFunc);
-		meshManager.ClearMesh();
-		meshManager.AddMesh("Box0", GeometryGenerator::CreateBox(100, 100, 100, 1));
-		m_MeshData["Box0"] = meshManager.GetAllMeshData<VertexPosLNormalTex>(
-			m_D3D12Device.Get(), m_CommandList.Get(), "Box", vertFunc);
-
-		m_RenderObjCount++;
+		};
+		
+		modelManager.CreateMeshData<VertexPosLNormalTex>(
+			model->GetName(),
+			m_D3D12Device.Get(),
+			m_CommandList.Get(),
+			vertFunc);
 	}
 
 	void LandAndWaveWithTexture::CreateTexture()
@@ -313,38 +297,32 @@ namespace DSM {
 			resource = std::make_unique<FrameResource>(m_D3D12Device.Get());
 			resource->AddConstantBuffer(
 				m_D3D12Device.Get(),
-				sizeof(ObjectConstants),
-				m_RenderObjCount,
-				"ObjectConstants");
-			resource->AddConstantBuffer(
-				m_D3D12Device.Get(),
 				sizeof(PassConstants),
 				1,
 				"PassConstants");
 			resource->AddConstantBuffer(
 				m_D3D12Device.Get(),
 				sizeof(MaterialConstants),
-				m_RenderObjCount,
+				ObjectManager::GetInstance().GetObjectCount(),
 				"MaterialConstants");
 		}
 	}
 
 	void LandAndWaveWithTexture::CreateMaterial()
 	{
-		m_BoxMaterial.Set("DiffuseColor", XMFLOAT3{ 1,1,1 });
-		m_BoxMaterial.Set("AmbientColor", XMFLOAT3{ 0.1 ,0.1 ,0.1 });
-		m_BoxMaterial.Set("SpecularColor", XMFLOAT3{ 1 ,1 ,1 });
-		m_BoxMaterial.Set("SpecularFactor", 0.2f);
+		m_Materials["Box"].Set("DiffuseColor", XMFLOAT3{ 1,1,1 });
+		m_Materials["Box"].Set("AmbientColor", XMFLOAT3{ 0.1 ,0.1 ,0.1 });
+		m_Materials["Box"].Set("SpecularColor", XMFLOAT3{ 1 ,1 ,1 });
+		m_Materials["Box"].Set("SpecularFactor", 0.2f);
 
 		MaterialConstants boxMat{};
-		boxMat.m_Ambient = *m_BoxMaterial.Get<XMFLOAT3>("AmbientColor");
-		boxMat.m_Diffuse = *m_BoxMaterial.Get<XMFLOAT3>("DiffuseColor");
-		boxMat.m_Specular = *m_BoxMaterial.Get<XMFLOAT3>("SpecularColor");
-		boxMat.m_Gloss = *m_BoxMaterial.Get<float>("SpecularFactor");
+		boxMat.m_Ambient = *m_Materials["Box"].Get<XMFLOAT3>("AmbientColor");
+		boxMat.m_Diffuse = *m_Materials["Box"].Get<XMFLOAT3>("DiffuseColor");
+		boxMat.m_Specular = *m_Materials["Box"].Get<XMFLOAT3>("SpecularColor");
+		boxMat.m_Gloss = *m_Materials["Box"].Get<float>("SpecularFactor");
 
 		for (int i = 0; i < FrameCount; ++i) {
 			auto& matCB = m_FrameResources[i]->m_ConstantBuffers["MaterialConstants"];
-			matCB->m_IsDirty = true;
 			matCB->Map();
 			matCB->CopyData(0, &boxMat, sizeof(MaterialConstants));
 			matCB->Unmap();
@@ -382,8 +360,8 @@ namespace DSM {
 		auto constBufferSize = m_FrameResources[0]->m_ConstantBuffers.size();
 
 		// 初始化根参数，使用根描述符和根描述符表
-		auto count = constBufferSize;
-		std::vector<D3D12_ROOT_PARAMETER> rootParamer(count + 2);
+		auto count = constBufferSize + 2;
+		std::vector<D3D12_ROOT_PARAMETER> rootParamer(count + 1);
 		for (int i = 0; i < count; ++i) {
 			rootParamer[i].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
 			rootParamer[i].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
@@ -391,11 +369,6 @@ namespace DSM {
 			rootParamer[i].Constants.ShaderRegister = i;
 			rootParamer[i].Constants.RegisterSpace = 0;
 		}
-		rootParamer[count].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
-		rootParamer[count].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
-		rootParamer[count].Constants.ShaderRegister = count;
-		rootParamer[count].Constants.RegisterSpace = 0;
-		count++;
 
 		D3D12_DESCRIPTOR_RANGE texTable{};
 		texTable.NumDescriptors = 1;
@@ -503,29 +476,36 @@ namespace DSM {
 		passConstants.m_DeltaTime = timer.DeltaTime();
 
 		auto& currPassCB = m_CurrFrameResource->m_ConstantBuffers.find("PassConstants")->second;
-		currPassCB->m_IsDirty = true;
 		currPassCB->Map();
 		currPassCB->CopyData(0, &passConstants, sizeof(PassConstants));
 		currPassCB->Unmap();
 	}
 
-	void LandAndWaveWithTexture::UpdateGeometry(const CpuTimer& timer)
+	void LandAndWaveWithTexture::UpdateObjCB(const CpuTimer& timer)
 	{
+		auto& objManager = ObjectManager::GetInstance();
 		auto& imgui = ImguiManager::GetInstance();
+		
+		auto getObjCB = [&imgui](const Object& obj) {
+			ObjectConstants ret{};
+			
+			auto& trans = obj.GetTransform();
+			auto scale = imgui.m_Transform.GetScaleMatrix() * trans.GetScaleMatrix();
+			auto rotate = imgui.m_Transform.GetRotateMatrix() * trans.GetRotateMatrix();
+			auto pos = XMVectorAdd(imgui.m_Transform.GetTranslation(), trans.GetTranslation());
+			auto world = scale * rotate * XMMatrixTranslationFromVector(pos);
+			
+			auto detWorld = XMMatrixDeterminant(world);
+			auto W = world;
+			W.r[3] = g_XMIdentityR3;
+			XMMATRIX invWorld = XMMatrixInverse(&detWorld, W);
+			XMStoreFloat4x4(&ret.m_World, XMMatrixTranspose(world));
+			XMStoreFloat4x4(&ret.m_WorldInvTranspos, XMMatrixTranspose(invWorld));
 
-		auto world = imgui.m_Transform.GetWorldMatrix();
-		auto detWorld = XMMatrixDeterminant(world);
-		auto W = world;
-		W.r[3] = g_XMIdentityR3;
-		XMMATRIX invWorld = XMMatrixInverse(&detWorld, W);
-		ObjectConstants objectConstants;
-		XMStoreFloat4x4(&objectConstants.m_World, XMMatrixTranspose(world));
-		XMStoreFloat4x4(&objectConstants.m_WorldInvTranspos, XMMatrixTranspose(invWorld));
-		auto& currObjCB = m_CurrFrameResource->m_ConstantBuffers.find("ObjectConstants")->second;
-		currObjCB->Map();
-		currObjCB->m_IsDirty = true;
-		currObjCB->CopyData(0, &objectConstants, sizeof(ObjectConstants));
-		currObjCB->Unmap();
+			return ret;
+		};
+		
+		objManager.UpdateObjectsCB(timer, getObjCB);
 	}
 
 	const std::array<const D3D12_STATIC_SAMPLER_DESC, 6> LandAndWaveWithTexture::GetStaticSamplers() const noexcept

@@ -24,9 +24,9 @@ namespace DSM {
 
 	protected:
 		BaseImGuiManager() = default;
-		virtual ~BaseImGuiManager();
+		virtual ~BaseImGuiManager() override;
 
-		virtual void UpdateImGui(const CpuTimer& timer);
+		virtual void UpdateImGui(const CpuTimer& timer) = 0;
 
 	protected:
 		Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> m_ImGuiSrvHeap;		// 提供给ImGui的着色器资源描述符堆
@@ -80,11 +80,6 @@ namespace DSM {
 		ImGuiNewFrame();
 		UpdateImGui(timer);
 		ImGui::Render();
-	}
-
-	template<typename Driver>
-	void BaseImGuiManager<Driver>::UpdateImGui(const CpuTimer& timer)
-	{
 	}
 
 	template<typename Driver>

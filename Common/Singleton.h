@@ -25,7 +25,7 @@ namespace DSM {
 		virtual ~Singleton() = default;
 
 	protected:
-		static inline T* m_Instance = nullptr;
+		inline static  T* m_Instance = nullptr;
 	};
 
 	template<typename T>

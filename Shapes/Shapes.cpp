@@ -34,7 +34,7 @@ namespace DSM {
 			m_BackBufferFormat))
 			return false;
 
-		StaticMeshManager::Create();
+		ModelManager::Create();
 
 		// 为初始化资源重置命令列表
 		ThrowIfFailed(m_CommandList->Reset(m_DirectCmdListAlloc.Get(), nullptr));
@@ -126,7 +126,7 @@ namespace DSM {
 
 	std::size_t LandAndWave::GetMeshSize() const noexcept
 	{
-		return StaticMeshManager::GetInstance().GetMeshSize();
+		return ModelManager::GetInstance().GetMeshSize();
 	}
 
 	void LandAndWave::OnRender(const CpuTimer& timer)
@@ -245,7 +245,7 @@ namespace DSM {
 		m_CommandList->SetGraphicsRootDescriptorTable(1, passCbvHandle);
 
 		UINT currMeshIndex = 0;
-		auto& objManager = StaticMeshManager::GetInstance();
+		auto& objManager = ModelManager::GetInstance();
 		for (const auto& drawArg : m_MeshData->m_DrawArgs) {
 			auto& submesh = drawArg.second;
 			auto vertexBV = m_MeshData->GetVertexBufferView();
@@ -377,7 +377,7 @@ namespace DSM {
 		geosphere->SetGeometryMesh(std::make_shared<GeometryMesh>(geosphereMesh));
 
 
-		auto& objManager = StaticMeshManager::GetInstance();
+		auto& objManager = ModelManager::GetInstance();
 		auto vertFunc = [](const Vertex& vert) {
 			VertexPosLColor ret{};
 			ret.m_Pos = vert.m_Position;

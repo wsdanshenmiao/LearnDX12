@@ -2,7 +2,7 @@
 #include "ImguiManager.h"
 #include "Vertex.h"
 #include "Model.h"
-#include "MeshManager.h"
+#include "ModelManager.h"
 #include "LightManager.h"
 
 using namespace DirectX;
@@ -20,7 +20,7 @@ namespace DSM {
 		}
 
 		LightManager::Create();
-		StaticMeshManager::Create();
+		ModelManager::Create();
 		ImguiManager::Create();
 		if (!ImguiManager::GetInstance().InitImGui(
 			m_D3D12Device.Get(),
@@ -298,7 +298,7 @@ namespace DSM {
 	{
 		// 加载模型
 		Model* elenaModel = new Model{ "Elena", "Models\\Elena.obj" };
-		auto& meshManager = StaticMeshManager::GetInstance();
+		auto& meshManager = ModelManager::GetInstance();
 		auto& mesh = elenaModel->GetAllMesh();
 		auto vertFunc = [](const Vertex& vert) {
 			VertexPosLNormal ret{};
@@ -309,7 +309,7 @@ namespace DSM {
 			};
 		// 加入网格
 		for (auto& m : mesh) {
-			auto newMesh = m.m_MeshData;
+			auto newMesh = m.m_Mesh;
 			meshManager.AddMesh(m.m_Name, std::move(newMesh));
 		}
 		m_MeshData[elenaModel->GetName()] = meshManager.GetAllMeshData<VertexPosLNormal>(

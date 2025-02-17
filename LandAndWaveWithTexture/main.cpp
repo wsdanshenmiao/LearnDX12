@@ -1,4 +1,4 @@
-#include "TexturingApp.h"
+#include "LandAndWaveWithTexture.h"
 
 using namespace DSM;
 using namespace DirectX;

@@ -1,16 +1,14 @@
 #include "Model.h"
-#include "Mesh.h"
 
 using namespace Assimp;
 using namespace DSM::Geometry;
 using namespace DirectX;
 
 namespace DSM {
-	Model::Model(const std::string& name, const std::string& filename)
-		:m_Name(name) {
-		LoadModelFromFile(filename);
+	Model::Model(const std::string& name)
+		:m_Name(name){
 	}
-
+	
 	std::string& Model::GetName()
 	{
 		return m_Name;
@@ -21,12 +19,18 @@ namespace DSM {
 		return m_Name;
 	}
 
-	const ModelMesh& Model::GetMesh(std::size_t index) const
+	const ModelMesh* Model::GetMesh(const std::string& name) const
 	{
-		return m_Meshs[index];
+		auto it = m_Meshs.find(name);
+		if (it == m_Meshs.end()){
+			return nullptr;
+		}
+		else{
+			return &it->second;
+		}
 	}
 
-	const std::vector<ModelMesh>& Model::GetAllMesh() const
+	const std::map<std::string, ModelMesh>& Model::GetAllMesh() const
 	{
 		return m_Meshs;
 	}
@@ -36,8 +40,39 @@ namespace DSM {
 		return m_Materials[index];
 	}
 
-	bool Model::LoadModelFromFile(const std::string& filename)
+	void Model::SetName(const std::string& name)
 	{
+		m_Name = name;
+	}
+
+	void Model::SetMesh(const ModelMesh& mesh)
+	{
+		m_Meshs[mesh.m_Name] = mesh;
+	}
+
+	void Model::SetMaterial(std::size_t index, const Material& material)
+	{
+		if (index > m_Materials.size()){
+			m_Materials.resize(index + 1);
+		}
+
+		m_Materials[index] = material;
+	}
+
+	void Model::ClearMesh()
+	{
+		m_Meshs.clear();
+	}
+
+	void Model::ClearMaterial()
+	{
+		m_Materials.clear();
+	}
+
+	bool Model::LoadModelFromFile(Model& model, const std::string& name, const std::string& filename)
+	{
+		model.SetName(name);
+		
 		Importer importer;
 		const aiScene* pScene = importer.ReadFile(
 			filename,
@@ -55,52 +90,74 @@ namespace DSM {
 			return false;
 		}
 
-		ProcessNode(pScene->mRootNode, pScene);
+		ProcessNode(model, pScene->mRootNode, pScene);
 
-		m_Materials.resize(pScene->mNumMaterials);
+		model.m_Materials.resize(pScene->mNumMaterials);
 		for (UINT i = 0; i < pScene->mNumMaterials; ++i) {
 			auto& material = pScene->mMaterials[i];
 
 			XMFLOAT3 vector{};
 			float value{};
 			uint32_t num = 3;
-			aiString name;
+			aiString matName;
 
-			if (aiReturn_SUCCESS == material->Get(AI_MATKEY_NAME, name))
-				m_Materials[i].Set("Name", std::string{ name.C_Str() });
+			if (aiReturn_SUCCESS == material->Get(AI_MATKEY_NAME, matName))
+				model.m_Materials[i].Set("Name", std::string{ matName.C_Str() });
 			if (aiReturn_SUCCESS == material->Get(AI_MATKEY_COLOR_AMBIENT, (float*)&vector, &num))
-				m_Materials[i].Set("AmbientColor", vector);
+				model.m_Materials[i].Set("AmbientColor", vector);
 			if (aiReturn_SUCCESS == material->Get(AI_MATKEY_COLOR_DIFFUSE, (float*)&vector, &num))
-				m_Materials[i].Set("DiffuseColor", vector);
+				model.m_Materials[i].Set("DiffuseColor", vector);
 			if (aiReturn_SUCCESS == material->Get(AI_MATKEY_COLOR_SPECULAR, (float*)&vector, &num))
-				m_Materials[i].Set("SpecularColor", vector);
+				model.m_Materials[i].Set("SpecularColor", vector);
 			if (aiReturn_SUCCESS == material->Get(AI_MATKEY_SPECULAR_FACTOR, value))
-				m_Materials[i].Set("SpecularFactor", value);
+				model.m_Materials[i].Set("SpecularFactor", value);
 			if (aiReturn_SUCCESS == material->Get(AI_MATKEY_COLOR_EMISSIVE, (float*)&vector, &num))
-				m_Materials[i].Set("EmissiveColor", vector);
+				model.m_Materials[i].Set("EmissiveColor", vector);
 			if (aiReturn_SUCCESS == material->Get(AI_MATKEY_OPACITY, value))
-				m_Materials[i].Set("Opacity", value);
+				model.m_Materials[i].Set("Opacity", value);
 			if (aiReturn_SUCCESS == material->Get(AI_MATKEY_COLOR_TRANSPARENT, (float*)&vector, &num))
-				m_Materials[i].Set("TransparentColor", vector);
+				model.m_Materials[i].Set("TransparentColor", vector);
 			if (aiReturn_SUCCESS == material->Get(AI_MATKEY_COLOR_REFLECTIVE, (float*)&vector, &num))
-				m_Materials[i].Set("ReflectiveColor", vector);
+				model.m_Materials[i].Set("ReflectiveColor", vector);
 		}
 
 		return true;
 
 	}
 
-	void Model::ProcessNode(aiNode* node, const aiScene* scene)
+	bool Model::LoadModelFromeGeometry(Model& model, const std::string& name, const Geometry::GeometryMesh& mesh)
+	{
+		if (mesh.m_Vertices.empty() || mesh.m_Indices32.empty()){
+			return false;
+		}
+
+		model.ClearMesh();
+		model.ClearMaterial();
+		
+		ModelMesh modelMesh;
+		modelMesh.m_Mesh = mesh;
+		modelMesh.m_Name = name;
+		modelMesh.m_MaterialIndex = 0;
+		modelMesh.m_BoundingBox = BoundingBox{};
+
+		model.SetName(name);
+		model.SetMesh(modelMesh);
+		model.SetMaterial(0, Material::GetDefaultMaterial());
+
+		return true;
+	}
+
+	void Model::ProcessNode(Model& model, aiNode* node, const aiScene* scene)
 	{
 		// 导入当前节点的网格
 		for (UINT i = 0; i < node->mNumMeshes; ++i) {
 			auto mesh = scene->mMeshes[node->mMeshes[i]];
-			m_Meshs.push_back(ProcessMesh(mesh, scene));
+			model.m_Meshs[std::string{mesh->mName.C_Str()}] = ProcessMesh(mesh, scene);
 		}
 
 		// 导入子节点的网格
 		for (UINT i = 0; i < node->mNumChildren; ++i) {
-			ProcessNode(node->mChildren[i], scene);
+			ProcessNode(model, node->mChildren[i], scene);
 		}
 	}
 

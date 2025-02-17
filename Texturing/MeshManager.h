@@ -12,7 +12,7 @@ namespace DSM {
 	/// <summary>
 	/// 统一管理静态网格，并生成所有网格的网格数据
 	/// </summary>
-	class StaticMeshManager : public Singleton<StaticMeshManager>
+	class ModelManager : public Singleton<ModelManager>
 	{
 	public:
 		void AddMesh(
@@ -32,9 +32,9 @@ namespace DSM {
 		void ClearMesh();
 
 	private:
-		friend Singleton<StaticMeshManager>;
-		StaticMeshManager() = default;
-		~StaticMeshManager() = default;
+		friend Singleton<ModelManager>;
+		ModelManager() = default;
+		~ModelManager() = default;
 
 
 	private:
@@ -42,7 +42,7 @@ namespace DSM {
 	};
 
 	template<typename VertexData, typename VertFunc>
-	std::unique_ptr<Geometry::MeshData> StaticMeshManager::GetAllMeshData(
+	std::unique_ptr<Geometry::MeshData> ModelManager::GetAllMeshData(
 		ID3D12Device* device,
 		ID3D12GraphicsCommandList* cmdList,
 		const std::string& meshName,

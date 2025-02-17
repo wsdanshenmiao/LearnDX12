@@ -31,7 +31,7 @@ namespace DSM {
 			m_BackBufferFormat))
 			return false;
 
-		StaticMeshManager::Create();
+		ModelManager::Create();
 
 		// 为初始化资源重置命令列表
 		ThrowIfFailed(m_CommandList->Reset(m_DirectCmdListAlloc.Get(), nullptr));
@@ -435,7 +435,7 @@ namespace DSM {
 	bool LandAndWave::CreateGeometry()
 	{
 		// 生成网格数据
-		auto& meshManager = StaticMeshManager::GetInstance();
+		auto& meshManager = ModelManager::GetInstance();
 		meshManager.AddMesh("Box", GeometryGenerator::CreateBox(3, 2, 2, 0));
 		meshManager.AddMesh("Geosphere", GeometryGenerator::CreateGeosphere(4, 0));
 		meshManager.AddMesh("Grid", GeometryGenerator::CreateGrid(100, 100, 50, 50));

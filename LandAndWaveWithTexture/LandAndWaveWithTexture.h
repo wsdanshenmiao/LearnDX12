@@ -3,9 +3,10 @@
 
 #include "D3D12App.h"
 #include "FrameResource.h"
-#include "Mesh.h"
+#include "MeshData.h"
 #include "Material.h"
 #include "Texture.h"
+#include "Waves.h"
 
 namespace DSM {
 	class LandAndWaveWithTexture : public D3D12App
@@ -36,7 +37,7 @@ namespace DSM {
 		void CreatePSOs();
 
 		void UpdateFrameResource(const CpuTimer& timer);
-		void UpdateGeometry(const CpuTimer& timer);
+		void UpdateObjCB(const CpuTimer& timer);
 
 		const std::array<const D3D12_STATIC_SAMPLER_DESC, 6> GetStaticSamplers() const noexcept;
 
@@ -52,14 +53,16 @@ namespace DSM {
 
 		std::unordered_map<std::string, ComPtr<ID3DBlob>> m_ShaderByteCode;
 
-		std::array<std::unique_ptr<FrameResource>, FrameCount> m_FrameResources;
 		std::unordered_map<std::string, std::unique_ptr<Geometry::MeshData>> m_MeshData;
 		std::unordered_map<std::string, std::unique_ptr<Texture>> m_Textures;
-		Material m_BoxMaterial;
+		std::unordered_map<std::string, Material> m_Materials;
 
+		std::array<std::unique_ptr<FrameResource>, FrameCount> m_FrameResources;
 		FrameResource* m_CurrFrameResource = nullptr;
+
+		std::unique_ptr<Waves> m_Waves;
+		
 		UINT m_CurrFrameIndex = 0;
-		UINT m_RenderObjCount = 0;
 	};
 
 } // namespace DSM

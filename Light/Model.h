@@ -14,7 +14,7 @@ namespace DSM {
 	struct ModelMesh
 	{
 		std::string m_Name;
-		Geometry::GeometryMesh m_MeshData;
+		Geometry::GeometryMesh m_Mesh;
 		DirectX::BoundingBox m_BoundingBox;
 		UINT m_MaterialIndex;
 	};
