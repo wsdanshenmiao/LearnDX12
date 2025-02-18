@@ -60,6 +60,7 @@ namespace DSM {
 		UpdateFrameResource(timer);
 		LightManager::GetInstance().UpdateLight();
 		UpdateObjCB(timer);
+		UpdateWaves(timer);
 	}
 
 	void LandAndWaveWithTexture::OnRender(const CpuTimer& timer)
@@ -226,6 +227,37 @@ namespace DSM {
 		auto land = std::make_shared<Object>(landModel->GetName(), landModel);
 		objManager.AddObject(land);
 
+
+		m_Waves = std::make_unique<Waves>(128, 128, 1.0f, 0.03f, 4.0f, 0.2f);
+		GeometryMesh waterMesh{};
+		auto& indices = waterMesh.m_Indices32;
+		indices.resize(3 * m_Waves->TriangleCount());
+		assert(m_Waves->VertexCount() < 0x0000ffff);
+
+		int m = m_Waves->RowCount();
+		int n = m_Waves->ColumnCount();
+		int k = 0;
+		for (int i = 0; i < m - 1; ++i)
+		{
+			for (int j = 0; j < n - 1; ++j)
+			{
+				indices[k] = i * n + j;
+				indices[k + 1] = i * n + j + 1;
+				indices[k + 2] = (i + 1) * n + j;
+
+				indices[k + 3] = (i + 1) * n + j;
+				indices[k + 4] = i * n + j + 1;
+				indices[k + 5] = (i + 1) * n + j + 1;
+
+				k += 6; // next quad
+			}
+		}
+		waterMesh.m_Vertices.resize(m_Waves->VertexCount());
+		auto waterModel = modelManager.LoadModelFromeGeometry("Waves", waterMesh);
+		auto waterObj = std::make_shared<Object>("Waves", waterModel);
+		objManager.AddObject(waterObj);
+
+
 		objManager.CreateObjectsResource<ObjectConstants>(m_D3D12Device.Get());
 
 		// 提前为所有模型生成网格数据
@@ -279,6 +311,11 @@ namespace DSM {
 				sizeof(MaterialConstants),
 				ObjectManager::GetInstance().GetObjectCount(),
 				"MaterialConstants");
+			resource->AddDynamicBuffer(
+				m_D3D12Device.Get(),
+				sizeof(VertexPosLNormalTex),
+				m_Waves->VertexCount(),
+				"WavesVertex");
 		}
 	}
 
@@ -478,6 +515,49 @@ namespace DSM {
 			};
 
 		objManager.UpdateObjectsCB(timer, getObjCB);
+	}
+
+	void LandAndWaveWithTexture::UpdateWaves(const CpuTimer& timer)
+	{
+		// Every quarter second, generate a random wave.
+		static float t_base = 0.0f;
+		if ((timer.TotalTime() - t_base) >= 0.25f)
+		{
+			t_base += 0.25f;
+
+			std::mt19937 gen(std::random_device{}());
+			std::uniform_int_distribution<int> range(4, m_Waves->RowCount() - 5);
+			int i = range(gen);
+			decltype(range)::param_type colRnage{ 4, m_Waves->ColumnCount() - 5 };
+			int j = range(gen);
+
+			std::uniform_real_distribution<float> rangeF{ .2f, .5f };
+			float r = rangeF(gen);
+
+			m_Waves->Disturb(i, j, r);
+		}
+
+		// Update the wave simulation.
+		m_Waves->Update(timer.DeltaTime());
+
+		// Update the wave vertex buffer with the new solution.
+		auto& currWavesVB = m_CurrFrameResource->m_ConstantBuffers.find("WavesVertex")->second;
+		currWavesVB->Map();
+		for (int i = 0; i < m_Waves->VertexCount(); ++i)
+		{
+			VertexPosLNormalTex v;
+
+			v.m_Pos = m_Waves->Position(i);
+			v.m_Normal = m_Waves->Normal(i);
+			v.m_TexCoord.x = 0.5f + v.m_Pos.x / m_Waves->Width();
+			v.m_TexCoord.y = 0.5f - v.m_Pos.z / m_Waves->Depth();
+			currWavesVB->CopyData(i, &v, sizeof(VertexPosLNormalTex));
+		}
+		currWavesVB->Unmap();
+
+		// Set the dynamic VB of the wave renderitem to the current frame VB.
+		auto meshData = ModelManager::GetInstance().GetMeshData<VertexPosLNormalTex>("Waves");
+		meshData->m_VertexBufferGPU = currWavesVB->GetResource();
 	}
 
 	const std::array<const D3D12_STATIC_SAMPLER_DESC, 6> LandAndWaveWithTexture::GetStaticSamplers() const noexcept

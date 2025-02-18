@@ -38,6 +38,7 @@ namespace DSM {
 
 		void UpdateFrameResource(const CpuTimer& timer);
 		void UpdateObjCB(const CpuTimer& timer);
+		void UpdateWaves(const CpuTimer& timer);
 
 		const std::array<const D3D12_STATIC_SAMPLER_DESC, 6> GetStaticSamplers() const noexcept;
 
