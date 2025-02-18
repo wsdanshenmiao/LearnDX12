@@ -39,12 +39,21 @@ namespace DSM {
 		void ClearMesh();
 		void ClearMaterial();
 		
-		static bool LoadModelFromFile(Model& model, const std::string& name, const std::string& filename);
+		static bool LoadModelFromFile(
+			Model& model,
+			const std::string& name,
+			const std::string& filename,
+			ID3D12GraphicsCommandList* cmdList);
 		static bool LoadModelFromeGeometry(Model& model, const std::string& name,const Geometry::GeometryMesh& mesh);
 		
 	private:
 		static void ProcessNode(Model& model, aiNode* node, const aiScene* scene);
-		static ModelMesh ProcessMesh(aiMesh* mesh, const aiScene* scene);
+		static ModelMesh ProcessMesh(aiMesh* mesh);
+		static void ProcessMaterial(
+			Model& model,
+			const std::string& filename,
+			ID3D12GraphicsCommandList* cmdList,
+			const aiScene* scene);
 
 	private:
 		std::string m_Name;

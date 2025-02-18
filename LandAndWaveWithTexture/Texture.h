@@ -11,7 +11,7 @@ namespace DSM {
 		Texture() noexcept = default;
 		Texture(const std::string& name) noexcept;
 		Texture(const std::string& name,
-			const std::wstring& fileName,   
+			const std::string& fileName,   
 			ID3D12Device* device,
 			ID3D12GraphicsCommandList* cmdList);
 		
@@ -25,7 +25,14 @@ namespace DSM {
 		
 		static bool LoadTextureFromFile(
 			Texture& texture,
-			const std::wstring& fileName,
+			const std::string& fileName,
+			ID3D12Device* device,
+			ID3D12GraphicsCommandList* cmdList);
+		static bool LoadTextureFromMemory(
+			Texture& texture,
+			const std::string& name,
+			void* data,
+			size_t dataSize,
 			ID3D12Device* device,
 			ID3D12GraphicsCommandList* cmdList);
 		

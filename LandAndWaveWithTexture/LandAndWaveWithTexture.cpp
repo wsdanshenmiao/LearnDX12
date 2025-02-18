@@ -5,6 +5,7 @@
 #include "ConstantData.h"
 #include "LightManager.h"
 #include "ObjectManager.h"
+#include "TextureManager.h"
 
 using namespace DirectX;
 using namespace DSM::Geometry;
@@ -16,8 +17,6 @@ namespace DSM {
 
 	bool LandAndWaveWithTexture::OnInit()
 	{
-		ModelManager::Create();
-
 		if (!D3D12App::OnInit()) {
 			return false;
 		}
@@ -25,7 +24,8 @@ namespace DSM {
 		// 注意初始化顺序
 		LightManager::Create(m_D3D12Device.Get(), FrameCount);
 		ObjectManager::Create(FrameCount);
-		ModelManager::Create();
+		ModelManager::Create(m_D3D12Device.Get());
+		TextureManager::Create(m_D3D12Device.Get());
 
 		if (!InitResource()) {
 			return false;
@@ -151,7 +151,9 @@ namespace DSM {
 		auto& [materialName, materialConstant] = *constBuffers.find("MaterialConstants");
 		m_CommandList->SetGraphicsRootConstantBufferView(3, materialConstant->GetResource()->GetGPUVirtualAddress());
 
-		m_CommandList->SetGraphicsRootDescriptorTable(4, m_TexDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
+		auto tex = m_TexDescriptorHeap->GetGPUDescriptorHandleForHeapStart();
+		tex.ptr += 2 * m_CbvSrvUavDescriptorSize;
+		m_CommandList->SetGraphicsRootDescriptorTable(4, tex);
 
 		ObjectManager::GetInstance().RenderObjects<VertexPosLNormalTex>(m_CommandList.Get(), 0);
 	}
@@ -204,7 +206,10 @@ namespace DSM {
 		auto& objManager = ObjectManager::GetInstance();
 
 		// 创建模型及物体
-		const Model* elenaModel = modelManager.LoadModelFromeFile("Elena", "Models\\Elena.obj");
+		const Model* elenaModel = modelManager.LoadModelFromeFile(
+			"Elena",
+			"Models\\Elena.obj",
+			m_CommandList.Get());
 		auto elena = std::make_shared<Object>(elenaModel->GetName(), elenaModel);
 		elena->GetTransform().SetScale({ 2,2,2 });
 		elena->GetTransform().SetPosition({ 0,0,0 });
@@ -270,7 +275,6 @@ namespace DSM {
 			};
 
 		modelManager.CreateMeshDataForAllModel<VertexPosLNormalTex>(
-			m_D3D12Device.Get(),
 			m_CommandList.Get(),
 			vertFunc);
 	}
@@ -279,12 +283,9 @@ namespace DSM {
 	{
 		// 读取并创建纹理
 		auto woodTex = std::make_unique<Texture>("Wood");
-		Texture::LoadTextureFromFile(*woodTex,
-			L"Textures/WoodCrate01.dds",
-			m_D3D12Device.Get(),
+		TextureManager::GetInstance().LoadTextureFromFile(
+			"Textures\\WoodCrate01.dds",
 			m_CommandList.Get());
-
-		m_Textures[woodTex->GetName()] = std::move(woodTex);
 	}
 
 	void LandAndWaveWithTexture::CreateLights()
@@ -342,27 +343,30 @@ namespace DSM {
 
 	void LandAndWaveWithTexture::CreateDescriptorHeaps()
 	{
+		auto& texManager = TextureManager::GetInstance();
+
 		// 创建纹理的描述符堆
 		D3D12_DESCRIPTOR_HEAP_DESC texHeapDesc{};
-		texHeapDesc.NumDescriptors = 1;
+		texHeapDesc.NumDescriptors = texManager.GetTextureSize();
 		texHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
 		texHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
 		ThrowIfFailed(m_D3D12Device->CreateDescriptorHeap(&texHeapDesc, IID_PPV_ARGS(m_TexDescriptorHeap.GetAddressOf())));
 
-		auto tex = m_Textures["Wood"]->GetTexture();
+		UINT counter = 0;
+		for (auto& [texName, tex] : texManager.GetAllTextures()) {
+			// 创建纹理的描述符
+			D3D12_SHADER_RESOURCE_VIEW_DESC texViewDesc{};
+			texViewDesc.Format = tex.GetTexture()->GetDesc().Format;
+			texViewDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+			texViewDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+			texViewDesc.Texture2D.MostDetailedMip = 0;
+			texViewDesc.Texture2D.MipLevels = tex.GetTexture()->GetDesc().MipLevels;
+			texViewDesc.Texture2D.ResourceMinLODClamp = 0;
 
-		// 创建纹理的描述符
-		D3D12_SHADER_RESOURCE_VIEW_DESC texViewDesc{};
-		texViewDesc.Format = tex->GetDesc().Format;
-		texViewDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
-		texViewDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-		texViewDesc.Texture2D.MostDetailedMip = 0;
-		texViewDesc.Texture2D.MipLevels = tex->GetDesc().MipLevels;
-		texViewDesc.Texture2D.ResourceMinLODClamp = 0;
-
-		m_D3D12Device->CreateShaderResourceView(
-			tex, &texViewDesc,
-			m_TexDescriptorHeap->GetCPUDescriptorHandleForHeapStart());
+			auto handle = m_TexDescriptorHeap->GetCPUDescriptorHandleForHeapStart();
+			handle.ptr += counter++ * m_CbvSrvUavDescriptorSize;
+			m_D3D12Device->CreateShaderResourceView(tex.GetTexture(), &texViewDesc, handle);
+		}
 	}
 
 

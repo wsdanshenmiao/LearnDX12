@@ -5,10 +5,13 @@ using namespace DSM::Geometry;
 using namespace DirectX;
 
 namespace DSM {
-	const Model* ModelManager::LoadModelFromeFile(const std::string& name, const std::string& filename)
+	const Model* ModelManager::LoadModelFromeFile(
+		const std::string& name,
+		const std::string& filename,
+		ID3D12GraphicsCommandList* cmdList)
 	{
 		Model model;
-		if (Model::LoadModelFromFile(model, name, filename)){
+		if (Model::LoadModelFromFile(model, name, filename, cmdList)){
 			m_Models[name] = std::move(model);
 			return &m_Models[name];
 		}
@@ -50,5 +53,9 @@ namespace DSM {
 	void ModelManager::ClearModels()
 	{
 		m_Models.clear();
+	}
+
+	ModelManager::ModelManager(ID3D12Device* device)
+		:m_Device(device){
 	}
 }

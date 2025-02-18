@@ -1,4 +1,8 @@
 #include "Model.h"
+#include "Texture.h"
+#include <filesystem>
+
+#include "TextureManager.h"
 
 using namespace Assimp;
 using namespace DSM::Geometry;
@@ -69,7 +73,11 @@ namespace DSM {
 		m_Materials.clear();
 	}
 
-	bool Model::LoadModelFromFile(Model& model, const std::string& name, const std::string& filename)
+	bool Model::LoadModelFromFile(
+		Model& model,
+		const std::string& name,
+		const std::string& filename,
+		ID3D12GraphicsCommandList* cmdList)
 	{
 		model.SetName(name);
 		
@@ -91,41 +99,17 @@ namespace DSM {
 		}
 
 		ProcessNode(model, pScene->mRootNode, pScene);
-
-		model.m_Materials.resize(pScene->mNumMaterials);
-		for (UINT i = 0; i < pScene->mNumMaterials; ++i) {
-			auto& material = pScene->mMaterials[i];
-
-			XMFLOAT3 vector{};
-			float value{};
-			uint32_t num = 3;
-			aiString matName;
-
-			if (aiReturn_SUCCESS == material->Get(AI_MATKEY_NAME, matName))
-				model.m_Materials[i].Set("Name", std::string{ matName.C_Str() });
-			if (aiReturn_SUCCESS == material->Get(AI_MATKEY_COLOR_AMBIENT, (float*)&vector, &num))
-				model.m_Materials[i].Set("AmbientColor", vector);
-			if (aiReturn_SUCCESS == material->Get(AI_MATKEY_COLOR_DIFFUSE, (float*)&vector, &num))
-				model.m_Materials[i].Set("DiffuseColor", vector);
-			if (aiReturn_SUCCESS == material->Get(AI_MATKEY_COLOR_SPECULAR, (float*)&vector, &num))
-				model.m_Materials[i].Set("SpecularColor", vector);
-			if (aiReturn_SUCCESS == material->Get(AI_MATKEY_SPECULAR_FACTOR, value))
-				model.m_Materials[i].Set("SpecularFactor", value);
-			if (aiReturn_SUCCESS == material->Get(AI_MATKEY_COLOR_EMISSIVE, (float*)&vector, &num))
-				model.m_Materials[i].Set("EmissiveColor", vector);
-			if (aiReturn_SUCCESS == material->Get(AI_MATKEY_OPACITY, value))
-				model.m_Materials[i].Set("Opacity", value);
-			if (aiReturn_SUCCESS == material->Get(AI_MATKEY_COLOR_TRANSPARENT, (float*)&vector, &num))
-				model.m_Materials[i].Set("TransparentColor", vector);
-			if (aiReturn_SUCCESS == material->Get(AI_MATKEY_COLOR_REFLECTIVE, (float*)&vector, &num))
-				model.m_Materials[i].Set("ReflectiveColor", vector);
-		}
+		ProcessMaterial(model, filename, cmdList, pScene);
+		
 
 		return true;
 
 	}
 
-	bool Model::LoadModelFromeGeometry(Model& model, const std::string& name, const Geometry::GeometryMesh& mesh)
+	bool Model::LoadModelFromeGeometry(
+		Model& model,
+		const std::string& name,
+		const Geometry::GeometryMesh& mesh)
 	{
 		if (mesh.m_Vertices.empty() || mesh.m_Indices32.empty()){
 			return false;
@@ -152,7 +136,7 @@ namespace DSM {
 		// 导入当前节点的网格
 		for (UINT i = 0; i < node->mNumMeshes; ++i) {
 			auto mesh = scene->mMeshes[node->mMeshes[i]];
-			model.m_Meshs[std::string{mesh->mName.C_Str()}] = ProcessMesh(mesh, scene);
+			model.m_Meshs[std::string{mesh->mName.C_Str()}] = ProcessMesh(mesh);
 		}
 
 		// 导入子节点的网格
@@ -161,7 +145,7 @@ namespace DSM {
 		}
 	}
 
-	ModelMesh Model::ProcessMesh(aiMesh* mesh, const aiScene* scene)
+	ModelMesh Model::ProcessMesh(aiMesh* mesh)
 	{
 		ModelMesh modelMesh{};
 		auto& geoMesh = modelMesh.m_Mesh;
@@ -213,5 +197,83 @@ namespace DSM {
 		return modelMesh;
 	}
 
+	void Model::ProcessMaterial(
+		Model& model,
+		const std::string& filename,
+		ID3D12GraphicsCommandList* cmdList,
+		const aiScene* scene)
+	{
+		model.m_Materials.resize(scene->mNumMaterials);
+		for (UINT i = 0; i < scene->mNumMaterials; ++i) {
+			auto& material = scene->mMaterials[i];
 
+			XMFLOAT3 vector{};
+			float value{};
+			uint32_t num = 3;
+			aiString matName;
+
+			if (aiReturn_SUCCESS == material->Get(AI_MATKEY_NAME, matName))
+				model.m_Materials[i].Set("Name", std::string{ matName.C_Str() });
+			if (aiReturn_SUCCESS == material->Get(AI_MATKEY_COLOR_AMBIENT, (float*)&vector, &num))
+				model.m_Materials[i].Set("AmbientColor", vector);
+			if (aiReturn_SUCCESS == material->Get(AI_MATKEY_COLOR_DIFFUSE, (float*)&vector, &num))
+				model.m_Materials[i].Set("DiffuseColor", vector);
+			if (aiReturn_SUCCESS == material->Get(AI_MATKEY_COLOR_SPECULAR, (float*)&vector, &num))
+				model.m_Materials[i].Set("SpecularColor", vector);
+			if (aiReturn_SUCCESS == material->Get(AI_MATKEY_SPECULAR_FACTOR, value))
+				model.m_Materials[i].Set("SpecularFactor", value);
+			if (aiReturn_SUCCESS == material->Get(AI_MATKEY_COLOR_EMISSIVE, (float*)&vector, &num))
+				model.m_Materials[i].Set("EmissiveColor", vector);
+			if (aiReturn_SUCCESS == material->Get(AI_MATKEY_OPACITY, value))
+				model.m_Materials[i].Set("Opacity", value);
+			if (aiReturn_SUCCESS == material->Get(AI_MATKEY_COLOR_TRANSPARENT, (float*)&vector, &num))
+				model.m_Materials[i].Set("TransparentColor", vector);
+			if (aiReturn_SUCCESS == material->Get(AI_MATKEY_COLOR_REFLECTIVE, (float*)&vector, &num))
+				model.m_Materials[i].Set("ReflectiveColor", vector);
+
+			aiString aiPath;
+			std::filesystem::path texFilename;
+			std::string texName;
+
+			auto tryCreateTexture = [&](aiTextureType type, const std::string& propertyName) {
+				if (!material->GetTextureCount(type))
+					return;
+
+				material->GetTexture(type, 0, &aiPath);
+
+				auto& texManager = TextureManager::GetInstance();
+
+				// 纹理已经预先加载进来
+				if (aiPath.data[0] == '*'){
+					texName = filename;
+					texName += aiPath.C_Str();
+					char* pEndStr = nullptr;
+					aiTexture* pTex = scene->mTextures[strtol(aiPath.data + 1, &pEndStr, 10)];
+					texManager.LoadTextureFromMemory(
+						texName,
+						pTex->pcData,
+						pTex->mHeight ? pTex->mWidth * pTex->mHeight : pTex->mWidth,
+						cmdList);
+					model.m_Materials[i].Set(propertyName, std::string(texName));
+				}
+				// 纹理通过文件名索引
+				else{
+					texFilename = filename;
+					texFilename = texFilename.parent_path() / aiPath.C_Str();
+					texManager.LoadTextureFromFile(texFilename.string(), cmdList);
+					model.m_Materials[i].Set(propertyName, texFilename.string());
+				}
+			};
+
+			tryCreateTexture(aiTextureType_DIFFUSE, "Diffuse");
+			tryCreateTexture(aiTextureType_NORMALS, "Normal");
+			tryCreateTexture(aiTextureType_BASE_COLOR, "Albedo");
+			tryCreateTexture(aiTextureType_NORMAL_CAMERA, "NormalCamera");
+			tryCreateTexture(aiTextureType_METALNESS, "Metalness");
+			tryCreateTexture(aiTextureType_DIFFUSE_ROUGHNESS, "Roughness");
+			tryCreateTexture(aiTextureType_AMBIENT_OCCLUSION, "AmbientOcclusion");
+		}
+	}
+	
 }
+

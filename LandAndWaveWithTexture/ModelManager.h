@@ -16,7 +16,10 @@ namespace DSM {
 	class ModelManager : public Singleton<ModelManager>
 	{
 	public:
-		const Model* LoadModelFromeFile(const std::string& name, const std::string& filename);
+		const Model* LoadModelFromeFile(
+			const std::string& name,
+			const std::string& filename,
+			ID3D12GraphicsCommandList* cmdList);
 		const Model* LoadModelFromeGeometry(
 			const std::string& name,
 			const Geometry::GeometryMesh& mesh);
@@ -24,12 +27,10 @@ namespace DSM {
 		template<typename VertexData, typename VertFunc>
 		const Geometry::MeshData* CreateMeshData(
 			const std::string& modelName,
-			ID3D12Device* device,
 			ID3D12GraphicsCommandList* cmdList,
 			VertFunc vertFunc);
 		template<typename VertexData, typename VertFunc>
 		void CreateMeshDataForAllModel(
-			ID3D12Device* device,
 			ID3D12GraphicsCommandList* cmdList,
 			VertFunc vertFunc);
 
@@ -42,11 +43,12 @@ namespace DSM {
 
 	private:
 		friend Singleton<ModelManager>;
-		ModelManager() = default;
+		ModelManager(ID3D12Device* device);
 		~ModelManager() = default;
 
 
 	private:
+		Microsoft::WRL::ComPtr<ID3D12Device> m_Device;
 		std::unordered_map<std::string, Model> m_Models;
 		std::unordered_map<std::string, Geometry::MeshData> m_MeshDatas;
 	};
@@ -54,7 +56,6 @@ namespace DSM {
 	template<typename VertexData, typename VertFunc>
 	inline const Geometry::MeshData* ModelManager::CreateMeshData(
 		const std::string& modelName,
-		ID3D12Device* device,
 		ID3D12GraphicsCommandList* cmdList,
 		VertFunc vertFunc)
 	{
@@ -99,7 +100,7 @@ namespace DSM {
 			meshIndices.insert(meshIndices.end(), mesh.m_Indices32.begin(), mesh.m_Indices32.end());
 		}
 		
-		meshData.CreateMeshData<VertexData, VertFunc>(totalMesh, device, cmdList, vertFunc);
+		meshData.CreateMeshData<VertexData>(totalMesh, m_Device.Get(), cmdList, vertFunc);
 
 		m_MeshDatas[meshDataName] = std::move(meshData);
 
@@ -107,11 +108,12 @@ namespace DSM {
 	}
 
 	template <typename VertexData, typename VertFunc>
-	inline void ModelManager::CreateMeshDataForAllModel(ID3D12Device* device,
-		ID3D12GraphicsCommandList* cmdList, VertFunc vertFunc)
+	inline void ModelManager::CreateMeshDataForAllModel(
+		ID3D12GraphicsCommandList* cmdList,
+		VertFunc vertFunc)
 	{
 		for (auto& [modelName, model] : m_Models) {
-			CreateMeshData<VertexData, VertFunc>(modelName, device, cmdList, vertFunc);
+			CreateMeshData<VertexData, VertFunc>(modelName, cmdList, vertFunc);
 		}
 	}
 

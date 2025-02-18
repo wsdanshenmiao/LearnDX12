@@ -54,7 +54,6 @@ namespace DSM {
 		std::unordered_map<std::string, ComPtr<ID3DBlob>> m_ShaderByteCode;
 
 		ComPtr<ID3D12DescriptorHeap> m_TexDescriptorHeap;
-		std::unordered_map<std::string, std::unique_ptr<Texture>> m_Textures;
 		std::unordered_map<std::string, Material> m_Materials;
 
 		std::array<std::unique_ptr<FrameResource>, FrameCount> m_FrameResources;
