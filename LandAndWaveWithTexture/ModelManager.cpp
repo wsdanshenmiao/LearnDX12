@@ -32,6 +32,21 @@ namespace DSM {
 		
 	}
 
+	const Model* ModelManager::GetModel(const std::string& modelName)
+	{
+		if (auto it = m_Models.find(modelName); it != m_Models.end()) {
+			return &it->second;
+		}
+		else {
+			return nullptr;
+		}
+	}
+
+	const std::unordered_map<std::string, Model>& ModelManager::GetAllModel()
+	{
+		return m_Models;
+	}
+
 	void ModelManager::ClearModels()
 	{
 		m_Models.clear();

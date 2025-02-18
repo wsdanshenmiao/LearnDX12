@@ -48,12 +48,11 @@ namespace DSM {
 
 	protected:
 		ComPtr<ID3D12RootSignature> m_RootSignature;
-		ComPtr<ID3D12DescriptorHeap> m_TexDescriptorHeap;
 		std::unordered_map<std::string, ComPtr<ID3D12PipelineState>> m_PSOs;
 
 		std::unordered_map<std::string, ComPtr<ID3DBlob>> m_ShaderByteCode;
 
-		std::unordered_map<std::string, std::unique_ptr<Geometry::MeshData>> m_MeshData;
+		ComPtr<ID3D12DescriptorHeap> m_TexDescriptorHeap;
 		std::unordered_map<std::string, std::unique_ptr<Texture>> m_Textures;
 		std::unordered_map<std::string, Material> m_Materials;
 
@@ -61,9 +60,10 @@ namespace DSM {
 		FrameResource* m_CurrFrameResource = nullptr;
 
 		std::unique_ptr<Waves> m_Waves;
-		
+
 		UINT m_CurrFrameIndex = 0;
 	};
+
 
 } // namespace DSM
 

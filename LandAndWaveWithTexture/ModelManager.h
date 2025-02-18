@@ -27,9 +27,16 @@ namespace DSM {
 			ID3D12Device* device,
 			ID3D12GraphicsCommandList* cmdList,
 			VertFunc vertFunc);
+		template<typename VertexData, typename VertFunc>
+		void CreateMeshDataForAllModel(
+			ID3D12Device* device,
+			ID3D12GraphicsCommandList* cmdList,
+			VertFunc vertFunc);
 
 		template<typename VertexData>
-		const Geometry::MeshData* GetMeshData(const std::string& modelName);
+		Geometry::MeshData* GetMeshData(const std::string& modelName);
+		const Model* GetModel(const std::string& modelName);
+		const std::unordered_map<std::string, Model>& GetAllModel();
 			
 		void ClearModels();
 
@@ -53,12 +60,9 @@ namespace DSM {
 	{
 		using namespace DSM::Geometry;
 		
-		MeshData meshData{};
 		auto meshDataName = modelName + typeid(VertexData).name(); 
-		meshData.m_Name = meshDataName;
-
-		// 查找是否已经生成了对应的网格数据s
-		if (auto it = m_MeshDatas.find(meshData.m_Name); it != m_MeshDatas.end()){
+		// 查找是否已经生成了对应的网格数据
+		if (auto it = m_MeshDatas.find(meshDataName); it != m_MeshDatas.end()){
 			return &it->second;
 		}
 
@@ -67,6 +71,8 @@ namespace DSM {
 		if (modelData == m_Models.end()){
 			return nullptr;
 		}
+		MeshData meshData{};
+		meshData.m_Name = meshDataName;
 
 		const Model& model = modelData->second;
 
@@ -100,8 +106,17 @@ namespace DSM {
 		return &m_MeshDatas[meshDataName];
 	}
 
+	template <typename VertexData, typename VertFunc>
+	inline void ModelManager::CreateMeshDataForAllModel(ID3D12Device* device,
+		ID3D12GraphicsCommandList* cmdList, VertFunc vertFunc)
+	{
+		for (auto& [modelName, model] : m_Models) {
+			CreateMeshData<VertexData, VertFunc>(modelName, device, cmdList, vertFunc);
+		}
+	}
+
 	template<typename VertexData>
-	inline const Geometry::MeshData* ModelManager::GetMeshData(const std::string& modelName)
+	inline Geometry::MeshData* ModelManager::GetMeshData(const std::string& modelName)
 	{
 		if (auto it = m_MeshDatas.find(modelName + typeid(VertexData).name()); it != m_MeshDatas.end()) {
 			return &it->second;

@@ -50,7 +50,7 @@ namespace DSM {
 			// 缓冲区相关数据
 			UINT m_VertexByteStride = 0;
 			UINT m_VertexBufferByteSize = 0;
-			DXGI_FORMAT m_IndexFormat = DXGI_FORMAT_R16_UINT;
+			DXGI_FORMAT m_IndexFormat = DXGI_FORMAT_R32_UINT;
 			UINT m_IndexSize = 0;
 			UINT m_IndexBufferByteSize = 0;
 
@@ -59,12 +59,16 @@ namespace DSM {
 		};
 
 		template<typename VertexData, typename VertFunc>
-	    inline void MeshData::CreateMeshData(
-    		const GeometryMesh& mesh,
-    		ID3D12Device* device,
+		inline void MeshData::CreateMeshData(
+			const GeometryMesh& mesh,
+			ID3D12Device* device,
 			ID3D12GraphicsCommandList* cmdList,
 			VertFunc vertFunc)
 		{
+			if (mesh.m_Vertices.empty() || mesh.m_Indices32.empty()) {
+				return;
+			}
+
 			// 将顶点数据转换为需要的格式
 			std::vector<VertexData> verticesData;
 			verticesData.reserve(mesh.m_Vertices.size());
@@ -74,17 +78,18 @@ namespace DSM {
 
 			auto vbByteSize = verticesData.size() * sizeof(VertexData);
 			auto ibByteSize = mesh.m_Indices32.size() * sizeof(std::uint32_t);
-			
+
 			ThrowIfFailed(D3DCreateBlob(vbByteSize, m_VertexBufferCPU.GetAddressOf()));
 			memcpy(m_VertexBufferCPU->GetBufferPointer(), verticesData.data(), vbByteSize);
 			ThrowIfFailed(D3DCreateBlob(ibByteSize, m_IndexBufferCPU.GetAddressOf()));
 			memcpy(m_IndexBufferCPU->GetBufferPointer(), mesh.m_Indices32.data(), ibByteSize);
-			
+
 			m_VertexByteStride = (UINT)sizeof(VertexData);
 			m_VertexBufferByteSize = (UINT)vbByteSize;
 			m_IndexFormat = DXGI_FORMAT_R32_UINT;
 			m_IndexBufferByteSize = (UINT)ibByteSize;
-			
+			m_IndexSize = mesh.m_Indices32.size();
+
 
 			// 创建顶点和索引的资源
 			D3D12_HEAP_PROPERTIES defaultHeapProps{};
@@ -99,7 +104,7 @@ namespace DSM {
 			desc.Width = vbByteSize;
 			desc.Height = 1;
 			desc.DepthOrArraySize = 1;
-			desc.SampleDesc = {1,0};
+			desc.SampleDesc = { 1,0 };
 			desc.Format = DXGI_FORMAT_UNKNOWN;
 			desc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
 			desc.MipLevels = 1;
@@ -137,19 +142,19 @@ namespace DSM {
 
 			// 拷贝数据到上传堆中
 			BYTE* mappedData = nullptr;
-			ThrowIfFailed(m_VertexBufferUploader->Map(0,nullptr, reinterpret_cast<void**>(&mappedData)));
-			memcpy(mappedData,verticesData.data(),vbByteSize);
+			ThrowIfFailed(m_VertexBufferUploader->Map(0, nullptr, reinterpret_cast<void**>(&mappedData)));
+			memcpy(mappedData, verticesData.data(), vbByteSize);
 			m_VertexBufferUploader->Unmap(0, nullptr);
 			// 将上传堆中的数据拷贝到默认堆中
 			cmdList->CopyBufferRegion(m_VertexBufferGPU.Get(), 0, m_VertexBufferUploader.Get(), 0, vbByteSize);
 
 			mappedData = nullptr;
-			ThrowIfFailed(m_IndexBufferUploader->Map(0,nullptr, reinterpret_cast<void**>(&mappedData)));
-			memcpy(mappedData,mesh.m_Indices32.data(),ibByteSize);
+			ThrowIfFailed(m_IndexBufferUploader->Map(0, nullptr, reinterpret_cast<void**>(&mappedData)));
+			memcpy(mappedData, mesh.m_Indices32.data(), ibByteSize);
 			m_IndexBufferUploader->Unmap(0, nullptr);
 			cmdList->CopyBufferRegion(m_IndexBufferGPU.Get(), 0, m_IndexBufferUploader.Get(), 0, ibByteSize);
-	    }
-		
+		}
+
 	}
 
 }

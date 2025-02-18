@@ -3,7 +3,6 @@
 #include "Vertex.h"
 #include "ModelManager.h"
 #include "ConstantData.h"
-#include "DDSTextureLoader12.h"
 #include "LightManager.h"
 #include "ObjectManager.h"
 
@@ -202,12 +201,30 @@ namespace DSM {
 	{
 		auto& modelManager = ModelManager::GetInstance();
 		auto& objManager = ObjectManager::GetInstance();
-		
-		const Model* model = modelManager.LoadModelFromeFile("Elena", "Models\\Elena.obj");
-		auto elena = std::make_shared<Object>(model->GetName(), model);
-		elena->GetTransform().SetScale({5,5,5});
-		elena->GetTransform().SetPosition({0,-50,0});
+
+		// 创建模型及物体
+		const Model* elenaModel = modelManager.LoadModelFromeFile("Elena", "Models\\Elena.obj");
+		auto elena = std::make_shared<Object>(elenaModel->GetName(), elenaModel);
+		elena->GetTransform().SetScale({ 2,2,2 });
+		elena->GetTransform().SetPosition({ 0,0,0 });
 		objManager.AddObject(elena);
+
+		auto grid = GeometryGenerator::CreateGrid(160.0f, 160.0f, 50, 50);
+		for (size_t i = 0; i < grid.m_Vertices.size(); ++i) {
+			auto& vert = grid.m_Vertices[i];
+			auto x = vert.m_Position.x;
+			auto z = vert.m_Position.z;
+			XMFLOAT3 n(-0.03f * z * cosf(0.1f * x) - 0.3f * cosf(0.1f * z), 1.0f,
+				-0.3f * sinf(0.1f * x) + 0.03f * x * sinf(0.1f * z));
+			XMVECTOR unitNormal = XMVector3Normalize(XMLoadFloat3(&n));
+			XMStoreFloat3(&n, unitNormal);
+
+			vert.m_Position.y = 0.3f * (z * sinf(0.1f * x) + x * cosf(0.1f * z));
+			vert.m_Normal = n;
+		}
+		auto landModel = modelManager.LoadModelFromeGeometry("Land", grid);
+		auto land = std::make_shared<Object>(landModel->GetName(), landModel);
+		objManager.AddObject(land);
 
 		objManager.CreateObjectsResource<ObjectConstants>(m_D3D12Device.Get());
 
@@ -218,10 +235,9 @@ namespace DSM {
 			ret.m_Pos = vert.m_Position;
 			ret.m_TexCoord = vert.m_TexCoord;
 			return ret;
-		};
-		
-		modelManager.CreateMeshData<VertexPosLNormalTex>(
-			model->GetName(),
+			};
+
+		modelManager.CreateMeshDataForAllModel<VertexPosLNormalTex>(
 			m_D3D12Device.Get(),
 			m_CommandList.Get(),
 			vertFunc);
@@ -230,55 +246,13 @@ namespace DSM {
 	void LandAndWaveWithTexture::CreateTexture()
 	{
 		// 读取并创建纹理
-		auto woodTex = std::make_unique<Texture>("Wood", L"Textures/WoodCrate01.dds");
-
-		std::unique_ptr<uint8_t[]> ddsData;
-		std::vector<D3D12_SUBRESOURCE_DATA> subresources;
-		ThrowIfFailed(LoadDDSTextureFromFile(
+		auto woodTex = std::make_unique<Texture>("Wood");
+		Texture::LoadTextureFromFile(*woodTex,
+			L"Textures/WoodCrate01.dds",
 			m_D3D12Device.Get(),
-			woodTex->m_Filename.c_str(),
-			woodTex->m_Texture.GetAddressOf(),
-			ddsData, subresources));
+			m_CommandList.Get());
 
-		// 获取上传堆的大小
-		UINT64 uploadBufferSize;
-		ID3D12Device* device = nullptr;
-		auto texDesc = woodTex->m_Texture->GetDesc();
-		woodTex->m_Texture->GetDevice(IID_PPV_ARGS(&device));
-		device->GetCopyableFootprints(&texDesc, 0, subresources.size(), 0, nullptr, nullptr, nullptr, &uploadBufferSize);
-
-
-		// 创建GPU上传堆
-		D3D12_HEAP_PROPERTIES heapProps{};
-		heapProps.Type = D3D12_HEAP_TYPE_UPLOAD;
-		heapProps.CPUPageProperty = D3D12_CPU_PAGE_PROPERTY_UNKNOWN;
-		heapProps.MemoryPoolPreference = D3D12_MEMORY_POOL_UNKNOWN;
-
-		auto uploadResDesc = CD3DX12_RESOURCE_DESC::Buffer(uploadBufferSize);
-
-		ThrowIfFailed(device->CreateCommittedResource(
-			&heapProps,
-			D3D12_HEAP_FLAG_NONE,
-			&uploadResDesc,
-			D3D12_RESOURCE_STATE_GENERIC_READ,
-			nullptr,
-			IID_PPV_ARGS(woodTex->m_UploadHeap.GetAddressOf())));
-
-		UpdateSubresources(m_CommandList.Get(), woodTex->m_Texture.Get(), woodTex->m_UploadHeap.Get(),
-			0, 0, static_cast<UINT>(subresources.size()), subresources.data());
-
-		D3D12_RESOURCE_BARRIER barrier{};
-		barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
-		barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
-		barrier.Transition = {
-			woodTex->m_Texture.Get(),
-			D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES,
-			D3D12_RESOURCE_STATE_COPY_DEST,
-			D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE
-		};
-		m_CommandList->ResourceBarrier(1, &barrier);
-
-		m_Textures[woodTex->m_Name] = std::move(woodTex);
+		m_Textures[woodTex->GetName()] = std::move(woodTex);
 	}
 
 	void LandAndWaveWithTexture::CreateLights()
@@ -287,7 +261,7 @@ namespace DSM {
 
 		DirectionalLight dirLight0{};
 		dirLight0.m_Color = { 1,1,1 };
-		dirLight0.m_Dir = { 0,-0.7,0.2 };
+		dirLight0.m_Dir = { 0.57735f, -0.57735f, 0.57735f };
 		lightManager.SetDirLight(0, std::move(dirLight0));
 	}
 
@@ -338,7 +312,7 @@ namespace DSM {
 		texHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
 		ThrowIfFailed(m_D3D12Device->CreateDescriptorHeap(&texHeapDesc, IID_PPV_ARGS(m_TexDescriptorHeap.GetAddressOf())));
 
-		auto& tex = m_Textures["Wood"]->m_Texture;
+		auto tex = m_Textures["Wood"]->GetTexture();
 
 		// 创建纹理的描述符
 		D3D12_SHADER_RESOURCE_VIEW_DESC texViewDesc{};
@@ -350,17 +324,15 @@ namespace DSM {
 		texViewDesc.Texture2D.ResourceMinLODClamp = 0;
 
 		m_D3D12Device->CreateShaderResourceView(
-			tex.Get(), &texViewDesc,
+			tex, &texViewDesc,
 			m_TexDescriptorHeap->GetCPUDescriptorHandleForHeapStart());
 	}
 
 
 	void LandAndWaveWithTexture::CreateRootSignature()
 	{
-		auto constBufferSize = m_FrameResources[0]->m_ConstantBuffers.size();
-
 		// 初始化根参数，使用根描述符和根描述符表
-		auto count = constBufferSize + 2;
+		auto count = 4;
 		std::vector<D3D12_ROOT_PARAMETER> rootParamer(count + 1);
 		for (int i = 0; i < count; ++i) {
 			rootParamer[i].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
@@ -485,16 +457,16 @@ namespace DSM {
 	{
 		auto& objManager = ObjectManager::GetInstance();
 		auto& imgui = ImguiManager::GetInstance();
-		
+
 		auto getObjCB = [&imgui](const Object& obj) {
 			ObjectConstants ret{};
-			
+
 			auto& trans = obj.GetTransform();
 			auto scale = imgui.m_Transform.GetScaleMatrix() * trans.GetScaleMatrix();
 			auto rotate = imgui.m_Transform.GetRotateMatrix() * trans.GetRotateMatrix();
 			auto pos = XMVectorAdd(imgui.m_Transform.GetTranslation(), trans.GetTranslation());
 			auto world = scale * rotate * XMMatrixTranslationFromVector(pos);
-			
+
 			auto detWorld = XMMatrixDeterminant(world);
 			auto W = world;
 			W.r[3] = g_XMIdentityR3;
@@ -503,8 +475,8 @@ namespace DSM {
 			XMStoreFloat4x4(&ret.m_WorldInvTranspos, XMMatrixTranspose(invWorld));
 
 			return ret;
-		};
-		
+			};
+
 		objManager.UpdateObjectsCB(timer, getObjCB);
 	}
 

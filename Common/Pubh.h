@@ -24,6 +24,6 @@
 #include <comdef.h>
 #include <variant>
 #include <fstream>
-
+#include <random>
 
 #endif // !__PUBH__H__

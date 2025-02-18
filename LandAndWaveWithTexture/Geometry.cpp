@@ -365,14 +365,14 @@ namespace DSM {
 
 			std::uint32_t vertexCout = m * n;
 			std::uint32_t faceCount = (m - 1) * (n - 1) * 2;
-			float halfWidth = width / 2;
-			float halfDepth = depth / 2;
+			float halfWidth = width * 0.5;
+			float halfDepth = depth * 0.5;
 
 			// 每个小网格的分量
 			float dx = width / (m - 1);
 			float dz = depth / (n - 1);
-			float du = 1 / (m - 1);
-			float dv = 1 / (n - 1);
+			float du = 1.f / (m - 1);
+			float dv = 1.f / (n - 1);
 
 			// 生成顶点
 			mesh.m_Vertices.resize(vertexCout);

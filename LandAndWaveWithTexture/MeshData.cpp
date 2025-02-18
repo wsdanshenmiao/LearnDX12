@@ -3,6 +3,7 @@
 namespace DSM::Geometry{
     D3D12_VERTEX_BUFFER_VIEW MeshData::GetVertexBufferView() const
     {
+        // 当顶点数据为动态时使用上传堆
         D3D12_VERTEX_BUFFER_VIEW vbView{};
         vbView.BufferLocation = m_VertexBufferGPU->GetGPUVirtualAddress();
         vbView.SizeInBytes = m_VertexBufferByteSize;

@@ -52,7 +52,7 @@ namespace DSM {
 
 	void Model::SetMaterial(std::size_t index, const Material& material)
 	{
-		if (index > m_Materials.size()){
+		if (index >= m_Materials.size()){
 			m_Materials.resize(index + 1);
 		}
 
