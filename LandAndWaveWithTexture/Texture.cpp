@@ -25,6 +25,11 @@ namespace DSM {
 		return m_Name;
 	}
 
+	UINT Texture::GetDescriptorIndex() const noexcept
+	{
+		return m_DescriptorIndex;
+	}
+
 	ID3D12Resource* Texture::GetTexture()
 	{
 		return m_Texture.Get();
@@ -38,6 +43,11 @@ namespace DSM {
 	void Texture::SetName(const std::string& name)
 	{
 		m_Name = name;
+	}
+
+	void Texture::SetDescriptorIndex(UINT index) noexcept
+	{
+		m_DescriptorIndex = index;
 	}
 
 	void Texture::DisposeUploader() noexcept
@@ -148,6 +158,18 @@ namespace DSM {
 		}
 
 		return true;
+	}
+
+	bool Texture::LoadTextureFromFile(
+		Texture& texture,
+		const std::string& name,
+		const std::string& fileName,
+		ID3D12Device* device,
+		ID3D12GraphicsCommandList* cmdList)
+	{
+		bool success = LoadTextureFromFile(texture, fileName, device, cmdList);
+		texture.SetName(name);
+		return success;
 	}
 
 	bool Texture::LoadTextureFromMemory(

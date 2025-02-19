@@ -5,7 +5,7 @@
 namespace DSM {
 	bool ObjectManager::AddObject(std::shared_ptr<Object> object) noexcept
 	{
-		if (object == nullptr || m_Objects.contains(object->GetName())){
+		if (object == nullptr || m_Objects.contains(object->GetName())) {
 			return false;
 		}
 		else {
@@ -31,10 +31,10 @@ namespace DSM {
 	}
 
 	ObjectManager::ObjectManager(UINT frameCount)
-		: m_FrameCount(frameCount) ,m_Counter(0){
+		: m_FrameCount(frameCount), m_Counter(0), m_ObjCBByteSize(0) {
 	}
 
 
-	
-	
+
+
 }

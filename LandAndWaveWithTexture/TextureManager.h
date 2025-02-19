@@ -12,6 +12,10 @@ namespace DSM {
 		bool LoadTextureFromFile(
 			const std::string& fileName,
 			ID3D12GraphicsCommandList* cmdList);
+		bool LoadTextureFromFile(
+			const std::string& name,
+			const std::string& fileName,
+			ID3D12GraphicsCommandList* cmdList);
 		bool LoadTextureFromMemory(
 			const std::string& name,
 			void* data,
@@ -20,7 +24,12 @@ namespace DSM {
 		bool AddTexture(const std::string& name, Texture&& texture);
 
 		size_t GetTextureSize() const noexcept;
-		std::unordered_map<std::string, Texture>& GetAllTextures() noexcept;
+		const std::unordered_map<std::string, Texture>& GetAllTextures() noexcept;
+		D3D12_GPU_DESCRIPTOR_HANDLE GetTextureResourceView(
+			const std::string& texName,
+			UINT descriptorSize) const;
+
+		void CreateTexDescriptor(UINT descriptorSize);
 
 	protected:
 		friend class Singleton<TextureManager>;
@@ -29,6 +38,7 @@ namespace DSM {
 
 	protected:
 		Microsoft::WRL::ComPtr<ID3D12Device> m_Device;
+		Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> m_TexDescriptorHeap;
 		std::unordered_map<std::string, Texture> m_Textures;
 	};
 }

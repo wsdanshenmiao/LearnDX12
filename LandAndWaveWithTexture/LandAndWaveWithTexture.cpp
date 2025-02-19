@@ -136,6 +136,8 @@ namespace DSM {
 
 	void LandAndWaveWithTexture::RenderScene()
 	{
+		auto& texManager = TextureManager::GetInstance();
+		
 		ID3D12DescriptorHeap* texHeap[] = { m_TexDescriptorHeap.Get() };
 		m_CommandList->SetDescriptorHeaps(_countof(texHeap), texHeap);
 
@@ -151,9 +153,8 @@ namespace DSM {
 		auto& [materialName, materialConstant] = *constBuffers.find("MaterialConstants");
 		m_CommandList->SetGraphicsRootConstantBufferView(3, materialConstant->GetResource()->GetGPUVirtualAddress());
 
-		auto tex = m_TexDescriptorHeap->GetGPUDescriptorHandleForHeapStart();
-		tex.ptr += 2 * m_CbvSrvUavDescriptorSize;
-		m_CommandList->SetGraphicsRootDescriptorTable(4, tex);
+		auto handle = texManager.GetTextureResourceView("Wood", m_CbvSrvUavDescriptorSize);
+		m_CommandList->SetGraphicsRootDescriptorTable(4, handle);
 
 		ObjectManager::GetInstance().RenderObjects<VertexPosLNormalTex>(m_CommandList.Get(), 0);
 	}
@@ -282,8 +283,9 @@ namespace DSM {
 	void LandAndWaveWithTexture::CreateTexture()
 	{
 		// 读取并创建纹理
-		auto woodTex = std::make_unique<Texture>("Wood");
+		auto woodTex = std::make_unique<Texture>();
 		TextureManager::GetInstance().LoadTextureFromFile(
+			"Wood",
 			"Textures\\WoodCrate01.dds",
 			m_CommandList.Get());
 	}
@@ -345,28 +347,7 @@ namespace DSM {
 	{
 		auto& texManager = TextureManager::GetInstance();
 
-		// 创建纹理的描述符堆
-		D3D12_DESCRIPTOR_HEAP_DESC texHeapDesc{};
-		texHeapDesc.NumDescriptors = texManager.GetTextureSize();
-		texHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
-		texHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
-		ThrowIfFailed(m_D3D12Device->CreateDescriptorHeap(&texHeapDesc, IID_PPV_ARGS(m_TexDescriptorHeap.GetAddressOf())));
-
-		UINT counter = 0;
-		for (auto& [texName, tex] : texManager.GetAllTextures()) {
-			// 创建纹理的描述符
-			D3D12_SHADER_RESOURCE_VIEW_DESC texViewDesc{};
-			texViewDesc.Format = tex.GetTexture()->GetDesc().Format;
-			texViewDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
-			texViewDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-			texViewDesc.Texture2D.MostDetailedMip = 0;
-			texViewDesc.Texture2D.MipLevels = tex.GetTexture()->GetDesc().MipLevels;
-			texViewDesc.Texture2D.ResourceMinLODClamp = 0;
-
-			auto handle = m_TexDescriptorHeap->GetCPUDescriptorHandleForHeapStart();
-			handle.ptr += counter++ * m_CbvSrvUavDescriptorSize;
-			m_D3D12Device->CreateShaderResourceView(tex.GetTexture(), &texViewDesc, handle);
-		}
+		texManager.CreateTexDescriptor(m_CbvSrvUavDescriptorSize);
 	}
 
 
