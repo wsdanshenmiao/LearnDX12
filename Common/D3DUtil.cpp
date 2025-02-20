@@ -66,7 +66,7 @@ namespace DSM {
 		return defaultBuffer;
 	}
 
-	UINT D3DUtil::CalcConstantBufferByteSize(UINT byteSize) noexcept
+	UINT D3DUtil::CalcCBByteSize(UINT byteSize) noexcept
 	{
 		// 常量缓冲区必须为硬件最小分配内存的整数倍，通常为256.
 		// 通过给byteSize加上256后，再屏蔽掉十六进制的最后八个bit可得到256的整数倍。

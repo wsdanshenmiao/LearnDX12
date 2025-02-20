@@ -42,11 +42,6 @@ namespace DSM {
 		return m_Model;
 	}
 
-	UINT Object::GetCBIndex() const noexcept
-	{
-		return m_ObjCBIndex;
-	}
-
 	DirectX::BoundingBox Object::GetBouningBox() const noexcept
 	{
 		return m_BoundingBox;
@@ -102,8 +97,4 @@ namespace DSM {
 		m_BoundingBox = boundingBox;
 	}
 
-	void Object::SetCBIndex(UINT index) noexcept
-	{
-		m_ObjCBIndex = index;
-	}
 }

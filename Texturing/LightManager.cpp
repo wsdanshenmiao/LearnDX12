@@ -80,7 +80,7 @@ namespace DSM {
 	{
 		m_LightsUploaders.reserve(m_FrameCount);
 		
-		auto byteSize = D3DUtil::CalcConstantBufferByteSize(GetLightByteSize());
+		auto byteSize = D3DUtil::CalcCBByteSize(GetLightByteSize());
 
 		// 创建堆属性
 		D3D12_HEAP_PROPERTIES heapProps{};

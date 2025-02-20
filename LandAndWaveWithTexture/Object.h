@@ -26,13 +26,11 @@ namespace DSM {
 		const Transform& GetTransform() const noexcept;
 		DirectX::BoundingBox GetBouningBox() const noexcept;
 		const Model* GetModel() const noexcept;
-		UINT GetCBIndex() const noexcept;
 
 		void SetName(const std::string& name);
 		void SetModel(const Model* model) noexcept;
 		void SetParent(std::shared_ptr<Object> parent) noexcept;
 		void SetBoundingBox(const DirectX::BoundingBox& boundingBox) noexcept;
-		void SetCBIndex(UINT index) noexcept;
 
 		void AddChild(std::shared_ptr<Object> child) noexcept;
 	

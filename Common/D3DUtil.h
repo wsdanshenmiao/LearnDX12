@@ -20,7 +20,7 @@ namespace DSM {
 			UINT64 byteSize,
 			ComPtr<ID3D12Resource>& upLoadBuffer);
 
-		static UINT CalcConstantBufferByteSize(UINT byteSize) noexcept;
+		static UINT CalcCBByteSize(UINT byteSize) noexcept;
 
 		static ComPtr<ID3DBlob> CompileShader(
 			const WCHAR* fileName,

@@ -95,7 +95,7 @@ namespace DSM {
 			&heapDesc, IID_PPV_ARGS(m_LightCbv.GetAddressOf())));
 
 		// 创建材质的资源视图
-		auto lightCbvSize = D3DUtil::CalcConstantBufferByteSize((UINT)GetLightByteSize());
+		auto lightCbvSize = D3DUtil::CalcCBByteSize((UINT)GetLightByteSize());
 		for (std::size_t i = 0; i < LightApp::FrameCount; ++i) {
 			auto lightCB = frameResourceArray[i]->m_ConstantBuffers.find("Lights")->second->GetResource();
 			auto lightCbvAdress = lightCB->GetGPUVirtualAddress();

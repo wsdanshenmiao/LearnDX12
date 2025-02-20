@@ -149,7 +149,7 @@ namespace DSM {
 		auto pointLightSize = m_PointLights.size() * sizeof(PointLight);
 		auto spotLightSize = m_PointLights.size() * sizeof(SpotLight);
 		auto byteSize = dirLightSize + pointLightSize + spotLightSize;
-		m_LightByteSize = D3DUtil::CalcConstantBufferByteSize(byteSize);
+		m_LightByteSize = D3DUtil::CalcCBByteSize(byteSize);
 
 		CreateLightBuffer(device);
 	}

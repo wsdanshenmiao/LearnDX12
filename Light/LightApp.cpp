@@ -451,9 +451,9 @@ namespace DSM {
 			&heapDesc, IID_PPV_ARGS(m_PassCbv.GetAddressOf())));
 
 		// 计算常量缓冲区的大小
-		auto objCbvByteSize = D3DUtil::CalcConstantBufferByteSize(sizeof(ObjectConstants));
-		auto passCbvByteSize = D3DUtil::CalcConstantBufferByteSize(sizeof(PassConstants));
-		auto matCbvByteSize = D3DUtil::CalcConstantBufferByteSize(sizeof(MaterialConstants));
+		auto objCbvByteSize = D3DUtil::CalcCBByteSize(sizeof(ObjectConstants));
+		auto passCbvByteSize = D3DUtil::CalcCBByteSize(sizeof(PassConstants));
+		auto matCbvByteSize = D3DUtil::CalcCBByteSize(sizeof(MaterialConstants));
 
 		// 创建对应视图
 		for (UINT frameIndex = 0; frameIndex < FrameCount; ++frameIndex) {

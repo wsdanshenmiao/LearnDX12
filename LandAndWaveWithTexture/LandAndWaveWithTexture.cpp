@@ -161,11 +161,8 @@ namespace DSM {
 		auto lightAddress = LightManager::GetInstance().GetGPUVirtualAddress();
 		m_CommandList->SetGraphicsRootConstantBufferView(2, lightAddress);
 
-		auto& [materialName, materialConstant] = *constBuffers.find(typeid(MaterialConstants).name());
-		m_CommandList->SetGraphicsRootConstantBufferView(3, materialConstant->GetGPUVirtualAddress());
-
-		auto handle = texManager.GetTextureResourceView("Wood", m_CbvSrvUavDescriptorSize);
-		m_CommandList->SetGraphicsRootDescriptorTable(4, handle);
+		auto objCBSize = D3DUtil::CalcCBByteSize(sizeof(ObjectConstants));
+		auto matCBSize = D3DUtil::CalcCBByteSize(sizeof(MaterialConstants));
 
 		for (const auto& [name, obj] : objManager.GetAllObject()) {
 			if (auto model = obj->GetModel(); model != nullptr) {
@@ -175,11 +172,20 @@ namespace DSM {
 				m_CommandList->IASetVertexBuffers(0, 1, &vertexBV);
 				m_CommandList->IASetIndexBuffer(&indexBV);
 
-				auto objHandle = m_CurrFrameResource->m_Buffers[typeid(ObjectConstants).name()]->GetGPUVirtualAddress();
-				objHandle += obj->GetCBIndex() * D3DUtil::CalcConstantBufferByteSize(sizeof(ObjectConstants));
+				auto objHandle = m_CurrFrameResource->m_Buffers[name]->GetGPUVirtualAddress();
 				m_CommandList->SetGraphicsRootConstantBufferView(0, objHandle);
 				
 				for (const auto& [name, drawItem] : meshData->m_DrawArgs) {
+					auto matIndex = model->GetMesh(name)->m_MaterialIndex;
+					const auto& mat = model->GetMaterial(matIndex);
+
+					auto texName = *mat.Get<std::string>("Diffuse");
+					auto handle = texManager.GetTextureResourceView(texName, m_CbvSrvUavDescriptorSize);
+					m_CommandList->SetGraphicsRootDescriptorTable(4, handle);
+					
+					auto matHandle = objHandle + objCBSize + matIndex * matCBSize;
+					m_CommandList->SetGraphicsRootConstantBufferView(3, matHandle);
+
 					m_CommandList->DrawIndexedInstanced(drawItem.m_IndexCount, 1, drawItem.m_StarIndexLocation, drawItem.m_BaseVertexLocation, 0);
 				}
 			}
@@ -317,7 +323,7 @@ namespace DSM {
 			}
 		};
 
-		setTexture("Land", "Textures\\WoodCrate01.dds", m_CommandList.Get());
+		setTexture("Land", "Textures\\grass.dds", m_CommandList.Get());
 		setTexture("Waves", "Textures\\water1.dds", m_CommandList.Get());
 	}
 
@@ -341,39 +347,26 @@ namespace DSM {
 				sizeof(PassConstants),
 				1,
 				typeid(PassConstants).name());
-			resource->AddConstantBuffer(
-				sizeof(MaterialConstants),
-				objManager.GetMaterialCount(),
-				typeid(MaterialConstants).name());
 			resource->AddDynamicBuffer(
 				sizeof(VertexPosLNormalTex),
 				m_Waves->VertexCount(),
 				"WavesVertex");
-			auto objCB = objManager.CreateObjectsResource(m_D3D12Device.Get(), sizeof(ObjectConstants));
-			resource->AddConstantBuffer(typeid(ObjectConstants).name(), objCB);
+			for (const auto& [name, obj] : objManager.GetAllObject()) {
+				auto objCB = objManager.CreateObjectsResource(
+					name,
+					m_D3D12Device.Get(),
+					sizeof(ObjectConstants),
+					sizeof(MaterialConstants));
+				if (objCB != nullptr) {
+					resource->AddConstantBuffer(name, objCB);
+				}
+			}
 		}
 	}
 
 	void LandAndWaveWithTexture::CreateMaterial()
 	{
-		m_Materials["Box"].Set("DiffuseColor", XMFLOAT3{ 1,1,1 });
-		m_Materials["Box"].Set("AmbientColor", XMFLOAT3{ 0.1 ,0.1 ,0.1 });
-		m_Materials["Box"].Set("SpecularColor", XMFLOAT3{ 1 ,1 ,1 });
-		m_Materials["Box"].Set("SpecularFactor", 0.2f);
 
-		MaterialConstants boxMat{};
-		boxMat.m_Ambient = *m_Materials["Box"].Get<XMFLOAT3>("AmbientColor");
-		boxMat.m_Diffuse = *m_Materials["Box"].Get<XMFLOAT3>("DiffuseColor");
-		boxMat.m_Specular = *m_Materials["Box"].Get<XMFLOAT3>("SpecularColor");
-		boxMat.m_Gloss = *m_Materials["Box"].Get<float>("SpecularFactor");
-
-		for (int i = 0; i < FrameCount; ++i) {
-			auto& matCB = m_FrameResources[i]->m_Buffers[typeid(MaterialConstants).name()];
-			BYTE* mappedData = nullptr;
-			matCB->Map(0,nullptr,reinterpret_cast<void**>(&mappedData));
-			memcpy(mappedData, &boxMat, sizeof(MaterialConstants));
-			matCB->Unmap(0, nullptr);
-		}
 	}
 
 	void LandAndWaveWithTexture::CreateDescriptorHeaps()
@@ -504,7 +497,7 @@ namespace DSM {
 
 		auto& currPassCB = m_CurrFrameResource->m_Buffers.find(typeid(PassConstants).name())->second;
 		BYTE* mappedData = nullptr;
-		auto byteSize = D3DUtil::CalcConstantBufferByteSize(sizeof(PassConstants));
+		auto byteSize = D3DUtil::CalcCBByteSize(sizeof(PassConstants));
 		currPassCB->Map(0,nullptr,reinterpret_cast<void**>(&mappedData));
 		memcpy(mappedData, &passConstants, byteSize);
 		currPassCB->Unmap(0, nullptr);
@@ -533,9 +526,35 @@ namespace DSM {
 
 			return ret;
 			};
+		auto getMatCB = [](const Material& material) {
+			MaterialConstants ret{};
+			if (auto diffuse = material.Get<XMFLOAT3>("DiffuseColor"); diffuse != nullptr) {
+				ret.m_Diffuse = *diffuse;
+			}
+			if (auto specular = material.Get<XMFLOAT3>("SpecularColor"); specular != nullptr) {
+				ret.m_Specular = *specular;
+			}
+			if (auto ambient = material.Get<XMFLOAT3>("AmbientColor"); ambient != nullptr) {
+				ret.m_Ambient = *ambient;
+				float ambientScale = 0.08f;
+				ret.m_Ambient = XMFLOAT3{
+					ret.m_Ambient.x * ambientScale,
+					ret.m_Ambient.y * ambientScale,
+					ret.m_Ambient.z * ambientScale };
+			}
+			if (auto gloss = material.Get<float>("SpecularFactor"); gloss != nullptr) {
+				ret.m_Gloss = *gloss;
+			}
+			if (auto alpha = material.Get<float>("Opacity"); alpha != nullptr) {
+				ret.m_Alpha = *alpha;
+			}
+			return ret;
+		};
 
-		auto objCB = m_CurrFrameResource->m_Buffers[typeid(ObjectConstants).name()];
-		objManager.UpdateObjectsCB(timer, getObjCB, objCB.Get());
+		for (const auto& [name, obj] : objManager.GetAllObject()) {
+			auto objCB = m_CurrFrameResource->m_Buffers[name];
+			objManager.UpdateObjectsCB(name, getObjCB, getMatCB, objCB.Get());
+		}
 	}
 
 	void LandAndWaveWithTexture::UpdateWaves(const CpuTimer& timer)

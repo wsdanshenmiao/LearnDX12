@@ -322,8 +322,8 @@ namespace DSM {
 
 	bool LandAndWave::CreateCBV()
 	{
-		auto objByteSize = D3DUtil::CalcConstantBufferByteSize(sizeof(ObjectConstants));
-		auto passByteSize = D3DUtil::CalcConstantBufferByteSize(sizeof(PassConstants));
+		auto objByteSize = D3DUtil::CalcCBByteSize(sizeof(ObjectConstants));
+		auto passByteSize = D3DUtil::CalcCBByteSize(sizeof(PassConstants));
 
 		// 创建每个帧资源的常量缓冲区视图
 		for (auto frameIndex = 0; frameIndex < FrameCount; ++frameIndex) {

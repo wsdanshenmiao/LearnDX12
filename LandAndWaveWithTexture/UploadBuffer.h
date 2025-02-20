@@ -36,7 +36,7 @@ namespace DSM {
 		UINT elementCount,
 		bool isConstantBuffer) {
 		m_ElementByteSize = isConstantBuffer ?
-			D3DUtil::CalcConstantBufferByteSize(elementByteSize) : elementByteSize;
+			D3DUtil::CalcCBByteSize(elementByteSize) : elementByteSize;
 		auto heapProperties = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
 		auto bufferDesc = CD3DX12_RESOURCE_DESC::Buffer(m_ElementByteSize * elementCount);
 		ThrowIfFailed(device->CreateCommittedResource(

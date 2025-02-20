@@ -36,7 +36,7 @@ namespace DSM {
 	{
 		ComPtr<ID3D12Resource> pResource;
 		
-		UINT elementByteSize = isConstant ? D3DUtil::CalcConstantBufferByteSize(byteSize) : byteSize;
+		UINT elementByteSize = isConstant ? D3DUtil::CalcCBByteSize(byteSize) : byteSize;
 		D3D12_HEAP_PROPERTIES heapProperties{};
 		heapProperties.Type = D3D12_HEAP_TYPE_UPLOAD;
 

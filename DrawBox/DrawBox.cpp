@@ -192,7 +192,7 @@ namespace DSM {
 
 		D3D12_CONSTANT_BUFFER_VIEW_DESC cbvDesc{};
 		cbvDesc.BufferLocation = m_ObjCB->GetResource()->GetGPUVirtualAddress();;
-		cbvDesc.SizeInBytes = D3DUtil::CalcConstantBufferByteSize(sizeof(ObjConstants));
+		cbvDesc.SizeInBytes = D3DUtil::CalcCBByteSize(sizeof(ObjConstants));
 		m_D3D12Device->CreateConstantBufferView(&cbvDesc, m_CbvHeap->GetCPUDescriptorHandleForHeapStart());
 
 		m_VSByteCode = D3DUtil::CompileShader(L"Shaders\\Color.hlsl", nullptr, "VS", "vs_5_0");
