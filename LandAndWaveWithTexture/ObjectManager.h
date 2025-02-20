@@ -14,113 +14,65 @@ namespace DSM {
 	{
 	public:
 		bool AddObject(std::shared_ptr<Object> object) noexcept;
-		bool RemoveObject(std::shared_ptr<Object> object) noexcept;
+		//bool RemoveObject(std::shared_ptr<Object> object) noexcept;
 
+		std::map<std::string, std::shared_ptr<Object>>& GetAllObject() noexcept;
 		std::size_t GetObjectCount() const noexcept;
+		std::size_t GetMaterialCount() const noexcept;
+		std::size_t GetObjectWithModelCount() const noexcept;
 
 		// 创建所有对象的常量缓冲区资源
-		template<typename ObjCB>
-		void CreateObjectsResource(ID3D12Device* device);
+		ID3D12Resource* CreateObjectsResource(ID3D12Device* device, UINT CBSize);
 
 		template<typename CBFunc>
-		void UpdateObjectsCB(const CpuTimer& timer, CBFunc func);
-		
-		template<typename VertexData>
-		void RenderObjects(ID3D12GraphicsCommandList* cmdList, UINT CBIndex);
+		void UpdateObjectsCB(const CpuTimer& timer, CBFunc func, ID3D12Resource* resource);
+		template<typename CBFunc>
+		void UpdateMaterialsCB(const CpuTimer& timer, CBFunc func, ID3D12Resource* resource);
 		
 	protected:
 		friend class Singleton<ObjectManager>;
-		ObjectManager(UINT frameCount);
+		ObjectManager() = default;
 		virtual ~ObjectManager() = default;
 
 	protected:
-		template<typename T>
-		using ComPtr = Microsoft::WRL::ComPtr<T>;
-		
-		ComPtr<ID3D12Resource> m_ObjCB;
-		
-		const UINT m_FrameCount;
-		UINT m_Counter;
-		UINT m_ObjCBByteSize;
-		
 		std::map<std::string, std::shared_ptr<Object>> m_Objects;
 	};
 
-
-	template<typename ObjCB>
-	inline void ObjectManager::CreateObjectsResource(ID3D12Device* device)
-	{
-		// 创建常量缓冲区资源
-		m_ObjCBByteSize = D3DUtil::CalcConstantBufferByteSize(sizeof(ObjCB));
-		D3D12_HEAP_PROPERTIES heapProp = {};
-		heapProp.Type = D3D12_HEAP_TYPE_UPLOAD;
-
-		D3D12_RESOURCE_DESC resourceDesc = {};
-		resourceDesc.Alignment = 0;
-		resourceDesc.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
-		resourceDesc.Flags = D3D12_RESOURCE_FLAG_NONE;
-		resourceDesc.Format = DXGI_FORMAT_UNKNOWN;
-		resourceDesc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
-		resourceDesc.Width = m_ObjCBByteSize * m_Objects.size() * m_FrameCount;
-		resourceDesc.Height = 1;
-		resourceDesc.DepthOrArraySize = 1;
-		resourceDesc.SampleDesc ={1,0};
-		resourceDesc.MipLevels = 1;
-
-		ThrowIfFailed(device->CreateCommittedResource(
-			&heapProp,
-			D3D12_HEAP_FLAG_NONE,
-			&resourceDesc,
-			D3D12_RESOURCE_STATE_GENERIC_READ,
-			nullptr,
-			IID_PPV_ARGS(m_ObjCB.ReleaseAndGetAddressOf())));
-	}
-
 	template<typename CBFunc>
-	inline void ObjectManager::UpdateObjectsCB(const CpuTimer& timer, CBFunc func)
+	inline void ObjectManager::UpdateObjectsCB(const CpuTimer& timer, CBFunc func, ID3D12Resource* resource)
 	{
-		m_Counter = (m_Counter + 1) % m_FrameCount;
+		if (resource == nullptr)return;
 		
-		auto frameByteSize = m_ObjCBByteSize * m_Objects.size();
 		BYTE* mappedData = nullptr;
-		ThrowIfFailed(m_ObjCB->Map(0, nullptr,reinterpret_cast<void**>(&mappedData)))
-		int objIndex = 0;
+		ThrowIfFailed(resource->Map(0, nullptr,reinterpret_cast<void**>(&mappedData)))
 		for (const auto& [name, object] : m_Objects) {
 			decltype(auto) cb = func(*object);
-			memcpy(mappedData + (m_Counter * frameByteSize + objIndex * m_ObjCBByteSize),&cb, m_ObjCBByteSize);
-			objIndex++;
+			auto byteSize = D3DUtil::CalcConstantBufferByteSize(sizeof(cb));
+			memcpy(mappedData + object->GetCBIndex() * byteSize, &cb, byteSize);
 		}
-		m_ObjCB->Unmap(0,nullptr);
+		resource->Unmap(0,nullptr);
 	}
 
-	template<typename VertexData>
-	inline void ObjectManager::RenderObjects(ID3D12GraphicsCommandList* cmdList, UINT CBIndex)
+	template <typename CBFunc>
+	inline void ObjectManager::UpdateMaterialsCB(const CpuTimer& timer, CBFunc func, ID3D12Resource* resource)
 	{
-		int counter = 0;
-		auto frameByteSize = m_ObjCBByteSize * m_Objects.size();
-		for (const auto& [name, obj] : m_Objects) {
-			if (auto model = obj->GetModel(); model != nullptr) {
-				const auto& meshData = ModelManager::GetInstance().GetMeshData<VertexData>(model->GetName());
-				auto vertexBV = meshData->GetVertexBufferView();
-				auto indexBV = meshData->GetIndexBufferView();
-				cmdList->IASetVertexBuffers(0, 1, &vertexBV);
-				cmdList->IASetIndexBuffer(&indexBV);
+		if (resource == nullptr)return;
 
-				auto handle = m_ObjCB->GetGPUVirtualAddress();
-				handle += m_Counter * frameByteSize + counter * m_ObjCBByteSize;
-				cmdList->SetGraphicsRootConstantBufferView(CBIndex, handle);
-				
-				for (const auto& [name, drawItem] : meshData->m_DrawArgs) {
-					cmdList->DrawIndexedInstanced(drawItem.m_IndexCount, 1, drawItem.m_StarIndexLocation, drawItem.m_BaseVertexLocation, 0);
+		BYTE* mappedData = nullptr;
+		UINT objCounter = 0;
+		ThrowIfFailed(resource->Map(0, nullptr,reinterpret_cast<void**>(&mappedData)));
+		for (const auto& [name, object] : m_Objects) {
+			auto model = object->GetModel();
+			if (model != nullptr) {
+				for (const auto& mat : model->GetAllMaterial()) {
+					decltype(auto) cb = func(mat);
+					auto byteSize = D3DUtil::CalcConstantBufferByteSize(sizeof(cb));
+					memcpy(mappedData + object->GetCBIndex() * byteSize, &cb, byteSize);
 				}
 			}
-			counter++;
 		}
+		resource->Unmap(0, nullptr);
 	}
-
-
-	
-
 }
 
 #endif // !__OBJECTMANAGER__H__

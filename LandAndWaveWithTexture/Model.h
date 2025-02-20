@@ -31,6 +31,9 @@ namespace DSM {
 		const ModelMesh* GetMesh(const std::string& name) const;
 		const std::map<std::string, ModelMesh>& GetAllMesh() const;
 		const Material& GetMaterial(std::size_t index) const;
+		Material& GetMaterial(std::size_t index);
+		std::size_t GetMaterialSize() const;
+		const std::vector<Material>& GetAllMaterial() const;
 
 		void SetName(const std::string& name);
 		void SetMesh(const ModelMesh& mesh);

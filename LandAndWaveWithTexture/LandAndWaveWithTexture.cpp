@@ -21,11 +21,14 @@ namespace DSM {
 			return false;
 		}
 
+		// 为创建帧资源，因此使用基类的命令列表堆
+		ThrowIfFailed(m_CommandList->Reset(m_DirectCmdListAlloc.Get(), nullptr));
+		
 		// 注意初始化顺序
 		LightManager::Create(m_D3D12Device.Get(), FrameCount);
-		ObjectManager::Create(FrameCount);
+		ObjectManager::Create();
 		ModelManager::Create(m_D3D12Device.Get());
-		TextureManager::Create(m_D3D12Device.Get());
+		TextureManager::Create(m_D3D12Device.Get(), m_CommandList.Get());
 
 		if (!InitResource()) {
 			return false;
@@ -39,6 +42,11 @@ namespace DSM {
 			m_BackBufferFormat)) {
 			return false;
 		}
+		
+		ThrowIfFailed(m_CommandList->Close());
+		ID3D12CommandList* pCmdLists[] = { m_CommandList.Get() };
+		m_CommandQueue->ExecuteCommandLists(_countof(pCmdLists), pCmdLists);
+		FlushCommandQueue();
 
 		return true;
 	}
@@ -119,6 +127,7 @@ namespace DSM {
 		ThrowIfFailed(m_DxgiSwapChain->Present(0, 0));
 
 		// 更新围栏
+		m_CurrFrameResource->m_Fence = ++m_CurrentFence;
 		m_CurrBackBuffer = (m_CurrBackBuffer + 1) % SwapChainBufferCount;
 		ThrowIfFailed(m_CommandQueue->Signal(m_D3D12Fence.Get(), m_CurrentFence));
 	}
@@ -137,33 +146,48 @@ namespace DSM {
 	void LandAndWaveWithTexture::RenderScene()
 	{
 		auto& texManager = TextureManager::GetInstance();
+		auto& objManager = ObjectManager::GetInstance();
+		auto& modelManager = ModelManager::GetInstance();
 		
-		ID3D12DescriptorHeap* texHeap[] = { m_TexDescriptorHeap.Get() };
+		ID3D12DescriptorHeap* texHeap[] = { texManager.GetDescriptorHeap() };
 		m_CommandList->SetDescriptorHeaps(_countof(texHeap), texHeap);
 
 		m_CommandList->SetGraphicsRootSignature(m_RootSignature.Get());
 
-		auto& constBuffers = m_CurrFrameResource->m_ConstantBuffers;
-		auto& [passName, passConstant] = *constBuffers.find("PassConstants");
-		m_CommandList->SetGraphicsRootConstantBufferView(1, passConstant->GetResource()->GetGPUVirtualAddress());
+		auto& constBuffers = m_CurrFrameResource->m_Buffers;
+		auto& [passName, passConstant] = *constBuffers.find(typeid(PassConstants).name());
+		m_CommandList->SetGraphicsRootConstantBufferView(1, passConstant->GetGPUVirtualAddress());
 
 		auto lightAddress = LightManager::GetInstance().GetGPUVirtualAddress();
 		m_CommandList->SetGraphicsRootConstantBufferView(2, lightAddress);
 
-		auto& [materialName, materialConstant] = *constBuffers.find("MaterialConstants");
-		m_CommandList->SetGraphicsRootConstantBufferView(3, materialConstant->GetResource()->GetGPUVirtualAddress());
+		auto& [materialName, materialConstant] = *constBuffers.find(typeid(MaterialConstants).name());
+		m_CommandList->SetGraphicsRootConstantBufferView(3, materialConstant->GetGPUVirtualAddress());
 
 		auto handle = texManager.GetTextureResourceView("Wood", m_CbvSrvUavDescriptorSize);
 		m_CommandList->SetGraphicsRootDescriptorTable(4, handle);
 
-		ObjectManager::GetInstance().RenderObjects<VertexPosLNormalTex>(m_CommandList.Get(), 0);
+		for (const auto& [name, obj] : objManager.GetAllObject()) {
+			if (auto model = obj->GetModel(); model != nullptr) {
+				const auto& meshData = modelManager.GetMeshData<VertexPosLNormalTex>(model->GetName());
+				auto vertexBV = meshData->GetVertexBufferView();
+				auto indexBV = meshData->GetIndexBufferView();
+				m_CommandList->IASetVertexBuffers(0, 1, &vertexBV);
+				m_CommandList->IASetIndexBuffer(&indexBV);
+
+				auto objHandle = m_CurrFrameResource->m_Buffers[typeid(ObjectConstants).name()]->GetGPUVirtualAddress();
+				objHandle += obj->GetCBIndex() * D3DUtil::CalcConstantBufferByteSize(sizeof(ObjectConstants));
+				m_CommandList->SetGraphicsRootConstantBufferView(0, objHandle);
+				
+				for (const auto& [name, drawItem] : meshData->m_DrawArgs) {
+					m_CommandList->DrawIndexedInstanced(drawItem.m_IndexCount, 1, drawItem.m_StarIndexLocation, drawItem.m_BaseVertexLocation, 0);
+				}
+			}
+		}
 	}
 
 	bool LandAndWaveWithTexture::InitResource()
 	{
-		// 为创建帧资源，因此使用基类的命令列表堆
-		ThrowIfFailed(m_CommandList->Reset(m_DirectCmdListAlloc.Get(), nullptr));
-
 		CreateShader();
 		CreateObject();
 		CreateTexture();
@@ -173,11 +197,6 @@ namespace DSM {
 		CreateDescriptorHeaps();
 		CreateRootSignature();
 		CreatePSOs();
-
-		ThrowIfFailed(m_CommandList->Close());
-		ID3D12CommandList* pCmdLists[] = { m_CommandList.Get() };
-		m_CommandQueue->ExecuteCommandLists(_countof(pCmdLists), pCmdLists);
-		FlushCommandQueue();
 
 		return true;
 	}
@@ -262,9 +281,7 @@ namespace DSM {
 		auto waterModel = modelManager.LoadModelFromeGeometry("Waves", waterMesh);
 		auto waterObj = std::make_shared<Object>("Waves", waterModel);
 		objManager.AddObject(waterObj);
-
-
-		objManager.CreateObjectsResource<ObjectConstants>(m_D3D12Device.Get());
+		
 
 		// 提前为所有模型生成网格数据
 		auto vertFunc = [](const Vertex& vert) {
@@ -282,12 +299,26 @@ namespace DSM {
 
 	void LandAndWaveWithTexture::CreateTexture()
 	{
+		auto& texManager = TextureManager::GetInstance();
+		auto& modelManager = ModelManager::GetInstance();
+
 		// 读取并创建纹理
-		auto woodTex = std::make_unique<Texture>();
-		TextureManager::GetInstance().LoadTextureFromFile(
-			"Wood",
-			"Textures\\WoodCrate01.dds",
-			m_CommandList.Get());
+		auto setTexture = [&texManager,&modelManager](
+			const std::string& modelname,
+			const std::string& filename,
+			ID3D12GraphicsCommandList* cmdList) {
+			if (auto tex = texManager.LoadTextureFromFile(
+			filename,
+			cmdList); tex != nullptr) {
+				if (auto model = modelManager.GetModel(modelname); model != nullptr) {
+					auto& landMat = model->GetMaterial(model->GetMesh(modelname)->m_MaterialIndex);
+					landMat.Set("Diffuse", tex->GetName());
+				}
+			}
+		};
+
+		setTexture("Land", "Textures\\WoodCrate01.dds", m_CommandList.Get());
+		setTexture("Waves", "Textures\\water1.dds", m_CommandList.Get());
 	}
 
 	void LandAndWaveWithTexture::CreateLights()
@@ -302,23 +333,24 @@ namespace DSM {
 
 	void LandAndWaveWithTexture::CreateFrameResource()
 	{
+		auto& objManager = ObjectManager::GetInstance();
+		
 		for (auto& resource : m_FrameResources) {
 			resource = std::make_unique<FrameResource>(m_D3D12Device.Get());
 			resource->AddConstantBuffer(
-				m_D3D12Device.Get(),
 				sizeof(PassConstants),
 				1,
-				"PassConstants");
+				typeid(PassConstants).name());
 			resource->AddConstantBuffer(
-				m_D3D12Device.Get(),
 				sizeof(MaterialConstants),
-				ObjectManager::GetInstance().GetObjectCount(),
-				"MaterialConstants");
+				objManager.GetMaterialCount(),
+				typeid(MaterialConstants).name());
 			resource->AddDynamicBuffer(
-				m_D3D12Device.Get(),
 				sizeof(VertexPosLNormalTex),
 				m_Waves->VertexCount(),
 				"WavesVertex");
+			auto objCB = objManager.CreateObjectsResource(m_D3D12Device.Get(), sizeof(ObjectConstants));
+			resource->AddConstantBuffer(typeid(ObjectConstants).name(), objCB);
 		}
 	}
 
@@ -336,10 +368,11 @@ namespace DSM {
 		boxMat.m_Gloss = *m_Materials["Box"].Get<float>("SpecularFactor");
 
 		for (int i = 0; i < FrameCount; ++i) {
-			auto& matCB = m_FrameResources[i]->m_ConstantBuffers["MaterialConstants"];
-			matCB->Map();
-			matCB->CopyData(0, &boxMat, sizeof(MaterialConstants));
-			matCB->Unmap();
+			auto& matCB = m_FrameResources[i]->m_Buffers[typeid(MaterialConstants).name()];
+			BYTE* mappedData = nullptr;
+			matCB->Map(0,nullptr,reinterpret_cast<void**>(&mappedData));
+			memcpy(mappedData, &boxMat, sizeof(MaterialConstants));
+			matCB->Unmap(0, nullptr);
 		}
 	}
 
@@ -469,10 +502,12 @@ namespace DSM {
 		passConstants.m_TotalTime = timer.TotalTime();
 		passConstants.m_DeltaTime = timer.DeltaTime();
 
-		auto& currPassCB = m_CurrFrameResource->m_ConstantBuffers.find("PassConstants")->second;
-		currPassCB->Map();
-		currPassCB->CopyData(0, &passConstants, sizeof(PassConstants));
-		currPassCB->Unmap();
+		auto& currPassCB = m_CurrFrameResource->m_Buffers.find(typeid(PassConstants).name())->second;
+		BYTE* mappedData = nullptr;
+		auto byteSize = D3DUtil::CalcConstantBufferByteSize(sizeof(PassConstants));
+		currPassCB->Map(0,nullptr,reinterpret_cast<void**>(&mappedData));
+		memcpy(mappedData, &passConstants, byteSize);
+		currPassCB->Unmap(0, nullptr);
 	}
 
 	void LandAndWaveWithTexture::UpdateObjCB(const CpuTimer& timer)
@@ -499,7 +534,8 @@ namespace DSM {
 			return ret;
 			};
 
-		objManager.UpdateObjectsCB(timer, getObjCB);
+		auto objCB = m_CurrFrameResource->m_Buffers[typeid(ObjectConstants).name()];
+		objManager.UpdateObjectsCB(timer, getObjCB, objCB.Get());
 	}
 
 	void LandAndWaveWithTexture::UpdateWaves(const CpuTimer& timer)
@@ -526,8 +562,10 @@ namespace DSM {
 		m_Waves->Update(timer.DeltaTime());
 
 		// Update the wave vertex buffer with the new solution.
-		auto& currWavesVB = m_CurrFrameResource->m_ConstantBuffers.find("WavesVertex")->second;
-		currWavesVB->Map();
+		auto& currWavesVB = m_CurrFrameResource->m_Buffers.find("WavesVertex")->second;
+		BYTE* mappedData = nullptr;
+		currWavesVB->Map(0, nullptr, reinterpret_cast<void**>(&mappedData));
+		auto byteSize = sizeof(VertexPosLNormalTex);
 		for (int i = 0; i < m_Waves->VertexCount(); ++i)
 		{
 			VertexPosLNormalTex v;
@@ -536,13 +574,13 @@ namespace DSM {
 			v.m_Normal = m_Waves->Normal(i);
 			v.m_TexCoord.x = 0.5f + v.m_Pos.x / m_Waves->Width();
 			v.m_TexCoord.y = 0.5f - v.m_Pos.z / m_Waves->Depth();
-			currWavesVB->CopyData(i, &v, sizeof(VertexPosLNormalTex));
+			memcpy(mappedData + i * byteSize, &v, byteSize);
 		}
-		currWavesVB->Unmap();
+		currWavesVB->Unmap(0, nullptr);
 
 		// Set the dynamic VB of the wave renderitem to the current frame VB.
 		auto meshData = ModelManager::GetInstance().GetMeshData<VertexPosLNormalTex>("Waves");
-		meshData->m_VertexBufferGPU = currWavesVB->GetResource();
+		meshData->m_VertexBufferGPU = currWavesVB;
 	}
 
 	const std::array<const D3D12_STATIC_SAMPLER_DESC, 6> LandAndWaveWithTexture::GetStaticSamplers() const noexcept

@@ -45,6 +45,11 @@ namespace DSM {
 		m_Name = name;
 	}
 
+	void Texture::SetTexture(ID3D12Resource* texture)
+	{
+		m_Texture = texture;
+	}
+
 	void Texture::SetDescriptorIndex(UINT index) noexcept
 	{
 		m_DescriptorIndex = index;

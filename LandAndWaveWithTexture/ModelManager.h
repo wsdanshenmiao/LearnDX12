@@ -36,7 +36,8 @@ namespace DSM {
 
 		template<typename VertexData>
 		Geometry::MeshData* GetMeshData(const std::string& modelName);
-		const Model* GetModel(const std::string& modelName);
+		const Model* GetModel(const std::string& modelName) const;
+		Model* GetModel(const std::string& modelName);
 		const std::unordered_map<std::string, Model>& GetAllModel();
 			
 		void ClearModels();

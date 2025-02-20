@@ -21,6 +21,7 @@ namespace DSM {
 		const ID3D12Resource* GetTexture() const;
 		
 		void SetName(const std::string& name);
+		void SetTexture(ID3D12Resource* texture);
 		void SetDescriptorIndex(UINT index) noexcept;
 		
 		void DisposeUploader() noexcept;

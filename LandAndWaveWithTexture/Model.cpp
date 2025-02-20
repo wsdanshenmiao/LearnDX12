@@ -44,6 +44,21 @@ namespace DSM {
 		return m_Materials[index];
 	}
 
+	Material& Model::GetMaterial(std::size_t index)
+	{
+		return m_Materials[index];
+	}
+
+	std::size_t Model::GetMaterialSize() const
+	{
+		return m_Materials.size();
+	}
+
+	const std::vector<Material>& Model::GetAllMaterial() const
+	{
+		return m_Materials;
+	}
+
 	void Model::SetName(const std::string& name)
 	{
 		m_Name = name;

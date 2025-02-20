@@ -9,14 +9,14 @@ namespace DSM {
 	class TextureManager : public Singleton<TextureManager>
 	{
 	public:
-		bool LoadTextureFromFile(
+		const Texture* LoadTextureFromFile(
 			const std::string& fileName,
 			ID3D12GraphicsCommandList* cmdList);
-		bool LoadTextureFromFile(
+		const Texture* LoadTextureFromFile(
 			const std::string& name,
 			const std::string& fileName,
 			ID3D12GraphicsCommandList* cmdList);
-		bool LoadTextureFromMemory(
+		const Texture* LoadTextureFromMemory(
 			const std::string& name,
 			void* data,
 			size_t dataSize,
@@ -28,12 +28,13 @@ namespace DSM {
 		D3D12_GPU_DESCRIPTOR_HANDLE GetTextureResourceView(
 			const std::string& texName,
 			UINT descriptorSize) const;
+		ID3D12DescriptorHeap* GetDescriptorHeap() const;
 
 		void CreateTexDescriptor(UINT descriptorSize);
 
 	protected:
 		friend class Singleton<TextureManager>;
-		TextureManager(ID3D12Device* device);
+		TextureManager(ID3D12Device* device, ID3D12GraphicsCommandList* cmdList);
 		virtual ~TextureManager() = default;
 
 	protected:
