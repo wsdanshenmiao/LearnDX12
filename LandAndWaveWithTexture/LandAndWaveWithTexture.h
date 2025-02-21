@@ -8,10 +8,10 @@
 #include "Waves.h"
 
 namespace DSM {
-	class LandAndWaveWithTexture : public D3D12App
+	class BlandAPP : public D3D12App
 	{
 	public:
-		LandAndWaveWithTexture(HINSTANCE hAppInst, const std::wstring& mainWndCaption, int clientWidth = 512, int clientHeight = 512);
+		BlandAPP(HINSTANCE hAppInst, const std::wstring& mainWndCaption, int clientWidth = 512, int clientHeight = 512);
 
 		bool OnInit() override;
 
@@ -30,7 +30,6 @@ namespace DSM {
 		void CreateTexture();
 		void CreateLights();
 		void CreateFrameResource();
-		void CreateMaterial();
 		void CreateDescriptorHeaps();
 		void CreateRootSignature();
 		void CreatePSOs();

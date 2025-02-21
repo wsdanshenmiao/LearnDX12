@@ -1,4 +1,4 @@
-#include "TexturingApp.h"
+#include "BlendAPP.h"
 
 using namespace DSM;
 using namespace DirectX;
@@ -14,7 +14,7 @@ int WinMain(
 #endif
 
 	try {
-		BlandAPP app(hInstance, L"Texturing", 1024, 768);
+		BlandAPP app(hInstance, L"Blend", 1024, 768);
 		app.OnInit();
 		return app.Run();
 	}

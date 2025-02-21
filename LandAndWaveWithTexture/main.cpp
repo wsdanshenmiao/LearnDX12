@@ -14,7 +14,7 @@ int WinMain(
 #endif
 
 	try {
-		LandAndWaveWithTexture app(hInstance, L"Texturing", 1024, 768);
+		BlandAPP app(hInstance, L"LandAndWavesWihTexture", 1024, 768);
 		app.OnInit();
 		return app.Run();
 	}

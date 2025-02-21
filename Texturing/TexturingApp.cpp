@@ -10,11 +10,11 @@ using namespace DirectX;
 using namespace DSM::Geometry;
 
 namespace DSM {
-	LandAndWaveWithTexture::LandAndWaveWithTexture(HINSTANCE hAppInst, const std::wstring& mainWndCaption, int clientWidth, int clientHeight)
+	BlandAPP::BlandAPP(HINSTANCE hAppInst, const std::wstring& mainWndCaption, int clientWidth, int clientHeight)
 		:D3D12App(hAppInst, mainWndCaption, clientWidth, clientHeight) {
 	}
 
-	bool LandAndWaveWithTexture::OnInit()
+	bool BlandAPP::OnInit()
 	{
 		ModelManager::Create();
 
@@ -41,7 +41,7 @@ namespace DSM {
 		return true;
 	}
 
-	void LandAndWaveWithTexture::OnUpdate(const CpuTimer& timer)
+	void BlandAPP::OnUpdate(const CpuTimer& timer)
 	{
 		m_CurrFrameIndex = (m_CurrFrameIndex + 1) % FrameCount;
 		m_CurrFrameResource = m_FrameResources[m_CurrFrameIndex].get();
@@ -60,7 +60,7 @@ namespace DSM {
 		LightManager::GetInstance().UpdateLight();
 	}
 
-	void LandAndWaveWithTexture::OnRender(const CpuTimer& timer)
+	void BlandAPP::OnRender(const CpuTimer& timer)
 	{
 		auto& imgui = ImguiManager::GetInstance();
 
@@ -120,7 +120,7 @@ namespace DSM {
 		ThrowIfFailed(m_CommandQueue->Signal(m_D3D12Fence.Get(), m_CurrentFence));
 	}
 
-	void LandAndWaveWithTexture::WaitForGPU()
+	void BlandAPP::WaitForGPU()
 	{
 		// 创建并设置事件
 		HANDLE eventHandle = CreateEvent(nullptr, false, false, nullptr);
@@ -131,7 +131,7 @@ namespace DSM {
 		CloseHandle(eventHandle);
 	}
 
-	void LandAndWaveWithTexture::RenderScene()
+	void BlandAPP::RenderScene()
 	{
 		ID3D12DescriptorHeap* texHeap[] = { m_TexDescriptorHeap.Get() };
 		m_CommandList->SetDescriptorHeaps(_countof(texHeap), texHeap);
@@ -165,7 +165,7 @@ namespace DSM {
 		}
 	}
 
-	bool LandAndWaveWithTexture::InitResource()
+	bool BlandAPP::InitResource()
 	{
 		// 为创建帧资源，因此使用基类的命令列表堆
 		ThrowIfFailed(m_CommandList->Reset(m_DirectCmdListAlloc.Get(), nullptr));
@@ -188,7 +188,7 @@ namespace DSM {
 		return true;
 	}
 
-	void LandAndWaveWithTexture::CreateShader()
+	void BlandAPP::CreateShader()
 	{
 		auto& lightManager = LightManager::GetInstance();
 		auto dirCount = std::to_string(lightManager.GetDirLightCount());
@@ -215,7 +215,7 @@ namespace DSM {
 	/// <summary>
 	/// 创建几何体
 	/// </summary>
-	void LandAndWaveWithTexture::CreateObject()
+	void BlandAPP::CreateObject()
 	{
 		auto boxMesh = GeometryGenerator::CreateBox(10, 10, 10, 1);
 		SubmeshData submeshData{};
@@ -243,7 +243,7 @@ namespace DSM {
 		m_RenderObjCount++;
 	}
 
-	void LandAndWaveWithTexture::CreateTexture()
+	void BlandAPP::CreateTexture()
 	{
 		// 读取并创建纹理
 		auto woodTex = std::make_unique<Texture>("Wood", L"Textures/WoodCrate01.dds");
@@ -297,7 +297,7 @@ namespace DSM {
 		m_Textures[woodTex->m_Name] = std::move(woodTex);
 	}
 
-	void LandAndWaveWithTexture::CreateLights()
+	void BlandAPP::CreateLights()
 	{
 		auto& lightManager = LightManager::GetInstance();
 
@@ -307,7 +307,7 @@ namespace DSM {
 		lightManager.SetDirLight(0, std::move(dirLight0));
 	}
 
-	void LandAndWaveWithTexture::CreateFrameResource()
+	void BlandAPP::CreateFrameResource()
 	{
 		for (auto& resource : m_FrameResources) {
 			resource = std::make_unique<FrameResource>(m_D3D12Device.Get());
@@ -329,7 +329,7 @@ namespace DSM {
 		}
 	}
 
-	void LandAndWaveWithTexture::CreateMaterial()
+	void BlandAPP::CreateMaterial()
 	{
 		m_BoxMaterial.Set("DiffuseColor", XMFLOAT3{ 1,1,1 });
 		m_BoxMaterial.Set("AmbientColor", XMFLOAT3{ 0.1 ,0.1 ,0.1 });
@@ -351,7 +351,7 @@ namespace DSM {
 		}
 	}
 
-	void LandAndWaveWithTexture::CreateDescriptorHeaps()
+	void BlandAPP::CreateDescriptorHeaps()
 	{
 		// 创建纹理的描述符堆
 		D3D12_DESCRIPTOR_HEAP_DESC texHeapDesc{};
@@ -377,7 +377,7 @@ namespace DSM {
 	}
 
 
-	void LandAndWaveWithTexture::CreateRootSignature()
+	void BlandAPP::CreateRootSignature()
 	{
 		auto constBufferSize = m_FrameResources[0]->m_ConstantBuffers.size();
 
@@ -438,7 +438,7 @@ namespace DSM {
 			IID_PPV_ARGS(m_RootSignature.GetAddressOf())));
 	}
 
-	void LandAndWaveWithTexture::CreatePSOs()
+	void BlandAPP::CreatePSOs()
 	{
 		D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc{};
 		ZeroMemory(&psoDesc, sizeof(D3D12_GRAPHICS_PIPELINE_STATE_DESC));
@@ -473,7 +473,7 @@ namespace DSM {
 			&psoDesc, IID_PPV_ARGS(m_PSOs["WireFrame"].GetAddressOf())));
 	}
 
-	void LandAndWaveWithTexture::UpdateFrameResource(const CpuTimer& timer)
+	void BlandAPP::UpdateFrameResource(const CpuTimer& timer)
 	{
 		auto& imgui = ImguiManager::GetInstance();
 
@@ -509,7 +509,7 @@ namespace DSM {
 		currPassCB->Unmap();
 	}
 
-	void LandAndWaveWithTexture::UpdateGeometry(const CpuTimer& timer)
+	void BlandAPP::UpdateGeometry(const CpuTimer& timer)
 	{
 		auto& imgui = ImguiManager::GetInstance();
 
@@ -528,7 +528,7 @@ namespace DSM {
 		currObjCB->Unmap();
 	}
 
-	const std::array<const D3D12_STATIC_SAMPLER_DESC, 6> LandAndWaveWithTexture::GetStaticSamplers() const noexcept
+	const std::array<const D3D12_STATIC_SAMPLER_DESC, 6> BlandAPP::GetStaticSamplers() const noexcept
 	{
 		// 创建六种静态采样器
 		D3D12_STATIC_SAMPLER_DESC staticSampler{};
