@@ -8,6 +8,10 @@ namespace DSM {
 	{
 		static DirectX::XMFLOAT4X4 Identity() noexcept;
 
+		static DirectX::XMMATRIX InverseTranspose(DirectX::FXMMATRIX matrix) noexcept;
+
+		static DirectX::XMMATRIX InverseTransposeWithOutTranslate(DirectX::FXMMATRIX matrix) noexcept;
+
 		inline static float PI = 3.1415926535f;
 	};
 

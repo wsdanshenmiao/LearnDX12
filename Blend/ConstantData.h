@@ -20,7 +20,9 @@ namespace DSM {
 		DirectX::XMFLOAT4X4 m_Proj = MathHelper::Identity();
 		DirectX::XMFLOAT4X4 m_InvProj = MathHelper::Identity();
 		DirectX::XMFLOAT3 m_EyePosW = { 0.0f, 0.0f, 0.0f };
-		float m_cbPerObjectPad1 = 0.0f;
+		float m_FogStart = 20;
+		DirectX::XMFLOAT3 m_FogColor = { 1.0f, 1.0f, 1.0f };
+		float m_FogRange = 100;
 		DirectX::XMFLOAT2 m_RenderTargetSize = { 0.0f, 0.0f };
 		DirectX::XMFLOAT2 m_InvRenderTargetSize = { 0.0f, 0.0f };
 		float m_NearZ = 0.0f;

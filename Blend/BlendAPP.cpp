@@ -222,7 +222,8 @@ namespace DSM {
 	{
 		auto shaderMacor = LightManager::GetInstance().GetLightsShaderMacros(
 			"MAXDIRLIGHTCOUNT", "MAXPOINTLIGHTCOUNT", "MAXSPOTLIGHTCOUNT");
-		
+
+		shaderMacor.push_back({"ENABLEFOG", "1"});
 		shaderMacor.push_back({ nullptr, nullptr });	// 充当结束标志
 
 		auto colorVS = D3DUtil::CompileShader(L"Shaders\\Color.hlsl", shaderMacor.data(), "VS", "vs_5_1");
@@ -230,7 +231,7 @@ namespace DSM {
 		auto lightVS = D3DUtil::CompileShader(L"Shaders\\Light.hlsl", shaderMacor.data(), "VS", "vs_5_1");
 		auto lightPS = D3DUtil::CompileShader(L"Shaders\\Light.hlsl", shaderMacor.data(), "PS", "ps_5_1");
 
-		shaderMacor.insert(shaderMacor.end() -1, {"ALPHATEST", "1"});
+		shaderMacor.insert(--shaderMacor.end(), {"ALPHATEST", "1"});
 		auto lightAlphaTestPS = D3DUtil::CompileShader(L"Shaders\\Light.hlsl", shaderMacor.data(), "PS", "ps_5_1");
 		
 		m_ShaderByteCode.insert(std::make_pair("ColorVS", colorVS));
@@ -538,6 +539,9 @@ namespace DSM {
 		passConstants.m_FarZ = 1000.0f;
 		passConstants.m_TotalTime = timer.TotalTime();
 		passConstants.m_DeltaTime = timer.DeltaTime();
+		passConstants.m_FogColor = imgui.m_FogColor;
+		passConstants.m_FogStart = imgui.m_FogStart;
+		passConstants.m_FogRange = imgui.m_FogRange;
 
 		auto& currPassCB = m_CurrFrameResource->m_Buffers.find(typeid(PassConstants).name())->second;
 		BYTE* mappedData = nullptr;
@@ -560,13 +564,9 @@ namespace DSM {
 			auto rotate = imgui.m_Transform.GetRotateMatrix() * trans.GetRotateMatrix();
 			auto pos = XMVectorAdd(imgui.m_Transform.GetTranslation(), trans.GetTranslation());
 			auto world = scale * rotate * XMMatrixTranslationFromVector(pos);
-
-			auto detWorld = XMMatrixDeterminant(world);
-			auto W = world;
-			W.r[3] = g_XMIdentityR3;
-			XMMATRIX invWorld = XMMatrixInverse(&detWorld, W);
+			
 			XMStoreFloat4x4(&ret.m_World, XMMatrixTranspose(world));
-			XMStoreFloat4x4(&ret.m_WorldInvTranspos, XMMatrixTranspose(invWorld));
+			XMStoreFloat4x4(&ret.m_WorldInvTranspos, MathHelper::InverseTransposeWithOutTranslate(world));
 
 			return ret;
 			};

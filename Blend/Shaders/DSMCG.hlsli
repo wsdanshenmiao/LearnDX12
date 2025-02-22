@@ -68,7 +68,9 @@ struct PassConstants
     float4x4 Proj;
     float4x4 InvProj;
     float3 EyePosW;
-    float pad0;
+    float FogStart;
+    float3 FogColor;
+    float FogRange;
     float2 RenderTargetSize;
     float2 InvRenderTargetSize;
     float NearZ;

@@ -36,7 +36,9 @@ float4 PS(VertexPosWHNormalWTex i) : SV_Target
     clip(alpha - 0.1f);
 #endif
     
-    float3 viewDir = normalize(i.PosW - gPassCB.EyePosW);
+    float3 viewDir = i.PosW - gPassCB.EyePosW;
+    float distToEye = length(viewDir);
+    viewDir /= distToEye;
     float3 normal = normalize(i.NormalW);
     
     float shadowFactor[MAXDIRLIGHTCOUNT];
@@ -49,7 +51,12 @@ float4 PS(VertexPosWHNormalWTex i) : SV_Target
     col += gMatCB.Ambient;
 
     float3 texCol = diffuseAlbedo.rgb;
-    col *= texCol; 
+    col *= texCol;
+
+#ifdef ENABLEFOG
+    float3 fogFactor = saturate((distToEye - gPassCB.FogStart) / gPassCB.FogRange);
+    col = lerp(col, gPassCB.FogColor, fogFactor);
+#endif
 
     return float4(col, alpha);
 }

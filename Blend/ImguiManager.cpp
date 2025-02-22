@@ -9,6 +9,9 @@ namespace DSM {
 		static float theta = 1.5f * XM_PI, phi = XM_PIDIV2 - 0.1f, scale = 1;
 		static float lightDir[] = {0.57735f, -0.57735f, 0.57735f};
 		static float lightColor[] = {1,1,1};
+		static float fogColor[] = {1,1,1};
+		static float fogStart = 20;
+		static float fogRange = 100;
 		float dt = timer.DeltaTime();
 		auto io = ImGui::GetIO();
 		auto& position = m_Transform.GetPosition();
@@ -47,6 +50,13 @@ namespace DSM {
 			ImGui::SliderFloat3("##4", lightDir, -1, 1 ,"");
 			ImGui::Text("Light Color: (%.1f, %.1f, %.1f)",m_LightColor.x, m_LightColor.y, m_LightColor.z);
 			ImGui::SliderFloat3("##5", lightColor, 0, 1,"");
+
+			ImGui::Text("Fog Color: (%.1f, %.1f, %.1f)" ,m_FogColor.x, m_FogColor.y, m_FogColor.z);
+			ImGui::SliderFloat3("##6", fogColor, 0, 1 ,"");
+			ImGui::Text("Fog Start: %.2f", fogStart);
+			ImGui::SliderFloat("##7", &fogStart, 0, 100, "");
+			ImGui::Text("Fog Range: %.2f", fogRange);
+			ImGui::SliderFloat("##8", &fogRange, 0, 500, "");
 		}
 		ImGui::End();
 
@@ -83,6 +93,9 @@ namespace DSM {
 		m_EyePos.y = m_Radius * cosf(phi);
 		m_LightColor = {lightColor[0], lightColor[1], lightColor[2]};
 		m_LightDir = {lightDir[0], lightDir[1], lightDir[2]};
+		m_FogColor  = {fogColor[0], fogColor[1], fogColor[2]};
+		m_FogStart = fogStart;
+		m_FogRange = fogRange;
 	}
 
 }

@@ -20,6 +20,9 @@ namespace DSM {
 		float m_Radius = 50.0f, m_Fov = DirectX::XM_PIDIV2;
 		bool m_Animate = false;
 		bool m_EnableWireFrame = false;
+		float m_FogStart = 10;
+		float m_FogRange = 100;
+		DirectX::XMFLOAT3 m_FogColor = DirectX::XMFLOAT3(1, 1, 1);
 		DirectX::XMFLOAT3 m_LightDir;
 		DirectX::XMFLOAT3 m_LightColor;
 		DirectX::XMFLOAT3 m_EyePos{};
