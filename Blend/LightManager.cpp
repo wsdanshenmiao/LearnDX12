@@ -36,7 +36,7 @@ namespace DSM {
 		return m_LightsUploaders->GetGPUVirtualAddress() + m_LightByteSize * m_Counter;
 	}
 
-	std::array<D3D_SHADER_MACRO, 4> LightManager::GetLightsShaderMacros(
+	std::vector<D3D_SHADER_MACRO> LightManager::GetLightsShaderMacros(
 		const char* dirName,
 		const char* pointName,
 		const char* spotName) const
@@ -46,11 +46,10 @@ namespace DSM {
 		lightCount[1] = std::to_string(m_PointLights.size());
 		lightCount[2] = std::to_string(m_SpotLights.size());
 
-		std::array<D3D_SHADER_MACRO, 4> shaderMacros{};
+		std::vector<D3D_SHADER_MACRO> shaderMacros(3);
 		shaderMacros[0] = { dirName, lightCount[0].c_str() };
 		shaderMacros[1] = { pointName, lightCount[1].c_str() };
 		shaderMacros[2] = { spotName, lightCount[2].c_str() };
-		shaderMacros[3] = { nullptr, nullptr };	// 充当结束标志
 
 		return shaderMacros;
 	}

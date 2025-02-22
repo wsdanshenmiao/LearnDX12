@@ -19,7 +19,7 @@ namespace DSM {
 		std::size_t GetSpotLightCount() const;
 		UINT GetLightByteSize() const;
 		D3D12_GPU_VIRTUAL_ADDRESS GetGPUVirtualAddress() const;
-		std::array<D3D_SHADER_MACRO, 4> GetLightsShaderMacros(
+		std::vector<D3D_SHADER_MACRO> GetLightsShaderMacros(
 			const char* dirName,
 			const char* pointName,
 			const char* spotName) const;
@@ -34,9 +34,9 @@ namespace DSM {
 		friend Singleton<LightManager>;
 		LightManager(ID3D12Device* device,
 			UINT frameCount,
-			int maxDirLight = 5,
-			int maxPointLight = 5,
-			int maxSpotLight = 5);
+			int maxDirLight = 3,
+			int maxPointLight = 1,
+			int maxSpotLight = 1);
 		virtual ~LightManager() = default;
 
 		void CreateLightBuffer(ID3D12Device* device);

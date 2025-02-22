@@ -4,15 +4,15 @@
 
 // 需要使用全局宏定义最大光源的数量
 #ifndef MAXDIRLIGHTCOUNT
-#define MAXDIRLIGHTCOUNT 5
+#define MAXDIRLIGHTCOUNT 3
 #endif
 
 #ifndef MAXPOINTLIGHTCOUNT
-#define MAXPOINTLIGHTCOUNT 5
+#define MAXPOINTLIGHTCOUNT 1
 #endif
 
 #ifndef MAXSPOTLIGHTCOUNT
-#define MAXSPOTLIGHTCOUNT 5
+#define MAXSPOTLIGHTCOUNT 1
 #endif
 
 struct DirectionalLight

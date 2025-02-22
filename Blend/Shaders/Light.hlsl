@@ -8,7 +8,12 @@ ConstantBuffer<Lights> gLightCB : register(b2);
 ConstantBuffer<MaterialConstants> gMatCB : register(b3);
 
 Texture2D gDiffuse : register(t0);
-SamplerState gSamplerPoint : register(s0);
+SamplerState gSamplerPointWrap          : register(s0);
+SamplerState gSamplerLinearWrap         : register(s1);
+SamplerState gSamplerAnisotropicWrap    : register(s2);
+SamplerState gSamplerPointClamp         : register(s3);
+SamplerState gSamplerLinearClamp        : register(s4);
+SamplerState gSamplerAnisotropicClamp   : register(s5);
 
 VertexPosWHNormalWTex VS(VertexPosLNormalLTex v)
 {
@@ -24,6 +29,13 @@ VertexPosWHNormalWTex VS(VertexPosLNormalLTex v)
 
 float4 PS(VertexPosWHNormalWTex i) : SV_Target
 {
+    float4 diffuseAlbedo = gDiffuse.Sample(gSamplerAnisotropicWrap, i.TexCoord);
+    float alpha = diffuseAlbedo.a * gMatCB.Alpha;
+#ifdef ALPHATEST
+    // 进行alpha测试，剔除alpha过低的像素
+    clip(alpha - 0.1f);
+#endif
+    
     float3 viewDir = normalize(i.PosW - gPassCB.EyePosW);
     float3 normal = normalize(i.NormalW);
     
@@ -36,8 +48,8 @@ float4 PS(VertexPosWHNormalWTex i) : SV_Target
     float3 col = ComputeLighting(gLightCB, gMatCB, viewDir, normal, i.PosW, shadowFactor);
     col += gMatCB.Ambient;
 
-    float3 texCol = gDiffuse.Sample(gSamplerPoint, i.TexCoord).rgb;
+    float3 texCol = diffuseAlbedo.rgb;
     col *= texCol; 
 
-    return float4(col, gMatCB.Alpha);
+    return float4(col, alpha);
 }

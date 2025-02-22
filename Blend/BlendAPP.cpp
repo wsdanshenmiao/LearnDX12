@@ -28,17 +28,16 @@ namespace DSM {
 		ObjectManager::Create();
 		ModelManager::Create(m_D3D12Device.Get());
 		TextureManager::Create(m_D3D12Device.Get(), m_CommandList.Get());
-
-		if (!InitResource()) {
-			return false;
-		}
-
 		ImguiManager::Create();
 		if (!ImguiManager::GetInstance().InitImGui(
 			m_D3D12Device.Get(),
 			m_hMainWnd,
 			FrameCount,
 			m_BackBufferFormat)) {
+			return false;
+		}
+
+		if (!InitResource()) {
 			return false;
 		}
 		
@@ -125,6 +124,8 @@ namespace DSM {
 		m_CommandList->SetGraphicsRootConstantBufferView(2, lightAddress);
 		
 		RenderScene(RenderLayer::Opaque);
+		m_CommandList->SetPipelineState(m_PSOs["AlphaTest"].Get());
+		RenderScene(RenderLayer::AlphaTest);
 		m_CommandList->SetPipelineState(m_PSOs["Transparent"].Get());
 		RenderScene(RenderLayer::Transparent);
 		
@@ -221,16 +222,22 @@ namespace DSM {
 	{
 		auto shaderMacor = LightManager::GetInstance().GetLightsShaderMacros(
 			"MAXDIRLIGHTCOUNT", "MAXPOINTLIGHTCOUNT", "MAXSPOTLIGHTCOUNT");
+		
+		shaderMacor.push_back({ nullptr, nullptr });	// 充当结束标志
 
 		auto colorVS = D3DUtil::CompileShader(L"Shaders\\Color.hlsl", shaderMacor.data(), "VS", "vs_5_1");
 		auto colorPS = D3DUtil::CompileShader(L"Shaders\\Color.hlsl", shaderMacor.data(), "PS", "ps_5_1");
 		auto lightVS = D3DUtil::CompileShader(L"Shaders\\Light.hlsl", shaderMacor.data(), "VS", "vs_5_1");
 		auto lightPS = D3DUtil::CompileShader(L"Shaders\\Light.hlsl", shaderMacor.data(), "PS", "ps_5_1");
 
+		shaderMacor.insert(shaderMacor.end() -1, {"ALPHATEST", "1"});
+		auto lightAlphaTestPS = D3DUtil::CompileShader(L"Shaders\\Light.hlsl", shaderMacor.data(), "PS", "ps_5_1");
+		
 		m_ShaderByteCode.insert(std::make_pair("ColorVS", colorVS));
 		m_ShaderByteCode.insert(std::make_pair("ColorPS", colorPS));
 		m_ShaderByteCode.insert(std::make_pair("LightVS", lightVS));
 		m_ShaderByteCode.insert(std::make_pair("LightPS", lightPS));
+		m_ShaderByteCode.insert(std::make_pair("LightAlphaTestPS", lightAlphaTestPS));
 	}
 
 	/// <summary>
@@ -299,6 +306,12 @@ namespace DSM {
 		waveModel->GetMaterial(0).Set("Opacity", 0.5f);
 		auto waterObj = std::make_shared<Object>("Waves", waterModel);
 		objManager.AddObject(waterObj, RenderLayer::Transparent);
+
+		auto wireFenceBox = GeometryGenerator::CreateBox(8.0f, 8.0f, 8.0f, 3);
+		auto wireFenceBoxModel = modelManager.LoadModelFromeGeometry("WireFence", wireFenceBox);
+		auto wireFenceBoxObj = std::make_shared<Object>(wireFenceBoxModel->GetName(), wireFenceBoxModel);
+		wireFenceBoxObj->GetTransform().SetPosition(-8,0,0);
+		objManager.AddObject(wireFenceBoxObj, RenderLayer::AlphaTest);
 		
 
 		// 提前为所有模型生成网格数据
@@ -325,9 +338,7 @@ namespace DSM {
 			const std::string& modelname,
 			const std::string& filename,
 			ID3D12GraphicsCommandList* cmdList) {
-			if (auto tex = texManager.LoadTextureFromFile(
-			filename,
-			cmdList); tex != nullptr) {
+			if (auto tex = texManager.LoadTextureFromFile(filename, cmdList); tex != nullptr) {
 				if (auto model = modelManager.GetModel(modelname); model != nullptr) {
 					auto& landMat = model->GetMaterial(model->GetMesh(modelname)->m_MaterialIndex);
 					landMat.Set("Diffuse", tex->GetName());
@@ -337,6 +348,7 @@ namespace DSM {
 
 		setTexture("Land", "Textures\\grass.dds", m_CommandList.Get());
 		setTexture("Waves", "Textures\\water1.dds", m_CommandList.Get());
+		setTexture("WireFence", "Textures\\WireFence.dds", m_CommandList.Get());
 	}
 
 	void BlandAPP::CreateLights()
@@ -476,17 +488,26 @@ namespace DSM {
 			&psoDesc, IID_PPV_ARGS(m_PSOs["Opaque"].GetAddressOf())));
 
 		// 线框模式
-		psoDesc.RasterizerState.FillMode = D3D12_FILL_MODE_WIREFRAME;
+		auto wirePso = psoDesc;
+		wirePso.RasterizerState.FillMode = D3D12_FILL_MODE_WIREFRAME;
 		ThrowIfFailed(m_D3D12Device->CreateGraphicsPipelineState(
-			&psoDesc, IID_PPV_ARGS(m_PSOs["WireFrame"].GetAddressOf())));
+			&wirePso, IID_PPV_ARGS(m_PSOs["WireFrame"].GetAddressOf())));
 
 		// 透明物体
-		psoDesc.RasterizerState.FillMode = D3D12_FILL_MODE_SOLID;
-		psoDesc.BlendState.RenderTarget[0].BlendEnable = true;
-		psoDesc.BlendState.RenderTarget[0].SrcBlend = D3D12_BLEND_SRC_ALPHA;
-		psoDesc.BlendState.RenderTarget[0].DestBlend = D3D12_BLEND_INV_SRC_ALPHA;
+		auto transparentPso = psoDesc;
+		transparentPso.BlendState.RenderTarget[0].BlendEnable = true;
+		transparentPso.BlendState.RenderTarget[0].SrcBlend = D3D12_BLEND_SRC_ALPHA;
+		transparentPso.BlendState.RenderTarget[0].DestBlend = D3D12_BLEND_INV_SRC_ALPHA;
 		ThrowIfFailed(m_D3D12Device->CreateGraphicsPipelineState(
-			&psoDesc, IID_PPV_ARGS(m_PSOs["Transparent"].GetAddressOf())));
+			&transparentPso, IID_PPV_ARGS(m_PSOs["Transparent"].GetAddressOf())));
+
+		auto alphaTestPso = psoDesc;
+		alphaTestPso.PS = {m_ShaderByteCode["LightAlphaTestPS"]->GetBufferPointer(),
+		m_ShaderByteCode["LightAlphaTestPS"]->GetBufferSize()
+		};
+		alphaTestPso.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
+		ThrowIfFailed(m_D3D12Device->CreateGraphicsPipelineState(
+			&alphaTestPso, IID_PPV_ARGS(m_PSOs["AlphaTest"].GetAddressOf())));
 	}
 
 	void BlandAPP::UpdateFrameResource(const CpuTimer& timer)
