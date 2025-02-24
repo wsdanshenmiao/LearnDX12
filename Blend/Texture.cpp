@@ -85,20 +85,14 @@ namespace DSM {
 			if (imgData == nullptr)return false;
 
 			subresources.clear();
-			D3D12_SUBRESOURCE_DATA subResourceData;
-			subResourceData.pData = imgData;
-			subResourceData.RowPitch = width * sizeof(uint32_t);
-			subResourceData.SlicePitch = 0;
-			subresources.emplace_back(std::move(subResourceData));
+			subresources.emplace_back(imgData,width * sizeof(uint32_t),0);
 
 			D3D12_HEAP_PROPERTIES texHeapDesc{};
 			texHeapDesc.Type = D3D12_HEAP_TYPE_DEFAULT;
 			D3D12_RESOURCE_DESC texResDesc{};
 			texResDesc.Alignment = 0;
 			texResDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
-			texResDesc.Flags = D3D12_RESOURCE_FLAG_NONE;
 			texResDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-			texResDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
 			texResDesc.Width = width;
 			texResDesc.Height = height;
 			texResDesc.DepthOrArraySize = 1;
@@ -113,50 +107,7 @@ namespace DSM {
 				IID_PPV_ARGS(texture.m_Texture.GetAddressOf())));
 		}
 
-		// 获取上传堆的大小
-		UINT64 uploadBufferSize;
-		auto texDesc = texture.m_Texture->GetDesc();
-		texture.m_Texture->GetDevice(IID_PPV_ARGS(&device));
-		device->GetCopyableFootprints(&texDesc, 0, subresources.size(), 0, nullptr, nullptr, nullptr, &uploadBufferSize);
-
-		// 创建GPU上传堆
-		D3D12_HEAP_PROPERTIES uploadHeapProps{};
-		uploadHeapProps.Type = D3D12_HEAP_TYPE_UPLOAD;
-
-		D3D12_RESOURCE_DESC uploadResDesc{};
-		uploadResDesc.Alignment = 0;
-		uploadResDesc.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
-		uploadResDesc.Flags = D3D12_RESOURCE_FLAG_NONE;
-		uploadResDesc.Format = DXGI_FORMAT_UNKNOWN;
-		uploadResDesc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
-		uploadResDesc.Width = uploadBufferSize;
-		uploadResDesc.Height = 1;
-		uploadResDesc.DepthOrArraySize = 1;
-		uploadResDesc.SampleDesc = { 1,0 };
-		uploadResDesc.MipLevels = 1;
-
-		ThrowIfFailed(device->CreateCommittedResource(
-			&uploadHeapProps,
-			D3D12_HEAP_FLAG_NONE,
-			&uploadResDesc,
-			D3D12_RESOURCE_STATE_GENERIC_READ,
-			nullptr,
-			IID_PPV_ARGS(texture.m_UploadHeap.GetAddressOf())));
-
-		UpdateSubresources(
-			cmdList, texture.m_Texture.Get(), texture.m_UploadHeap.Get(),
-			0, 0, static_cast<UINT>(subresources.size()), subresources.data());
-
-		D3D12_RESOURCE_BARRIER barrier{};
-		barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
-		barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
-		barrier.Transition = {
-			texture.m_Texture.Get(),
-			D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES,
-			D3D12_RESOURCE_STATE_COPY_DEST,
-			D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE
-		};
-		cmdList->ResourceBarrier(1, &barrier);
+		LoadTexture(texture, subresources, device, cmdList);
 
 		if (imgData != nullptr) {
 			stbi_image_free(imgData);
@@ -210,9 +161,7 @@ namespace DSM {
 			D3D12_RESOURCE_DESC texResDesc{};
 			texResDesc.Alignment = 0;
 			texResDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
-			texResDesc.Flags = D3D12_RESOURCE_FLAG_NONE;
-			texResDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
-			texResDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
+			texResDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
 			texResDesc.Width = width;
 			texResDesc.Height = height;
 			texResDesc.DepthOrArraySize = 1;
@@ -227,12 +176,32 @@ namespace DSM {
 				IID_PPV_ARGS(texture.m_Texture.GetAddressOf())));
 		}
 
-		// 获取上传堆的大小
-		UINT64 uploadBufferSize;
-		auto texDesc = texture.m_Texture->GetDesc();
-		texture.m_Texture->GetDevice(IID_PPV_ARGS(&device));
-		device->GetCopyableFootprints(&texDesc, 0, subresources.size(), 0, nullptr, nullptr, nullptr, &uploadBufferSize);
+		LoadTexture(texture, subresources, device, cmdList);
 
+		if (imgData != nullptr) {
+			stbi_image_free(imgData);
+		}
+
+		return true;
+	}
+
+	void Texture::LoadTexture(
+		Texture& texture,
+		const std::vector<D3D12_SUBRESOURCE_DATA>& subresources,
+		ID3D12Device* device,
+		ID3D12GraphicsCommandList* cmdList)
+	{
+		// 获取拷贝信息
+		std::vector<D3D12_PLACED_SUBRESOURCE_FOOTPRINT> footprint(subresources.size());	// 子资源的宽高偏移等信息
+		std::vector<UINT> numRows(subresources.size());	// 子资源的行数
+		std::vector<UINT64> rowByteSize(subresources.size());	// 子资源每一行的字节大小
+		UINT64 uploadBufferSize;	// 整个纹理数据的大小
+		auto texDesc = texture.m_Texture->GetDesc();
+		device->GetCopyableFootprints(
+			&texDesc, 0,
+			subresources.size(), 0,
+			footprint.data(), numRows.data(),
+			rowByteSize.data(), &uploadBufferSize);
 
 		// 创建GPU上传堆
 		D3D12_HEAP_PROPERTIES uploadHeapProps{};
@@ -241,8 +210,6 @@ namespace DSM {
 		D3D12_RESOURCE_DESC uploadResDesc{};
 		uploadResDesc.Alignment = 0;
 		uploadResDesc.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
-		uploadResDesc.Flags = D3D12_RESOURCE_FLAG_NONE;
-		uploadResDesc.Format = DXGI_FORMAT_UNKNOWN;
 		uploadResDesc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
 		uploadResDesc.Width = uploadBufferSize;
 		uploadResDesc.Height = 1;
@@ -258,13 +225,41 @@ namespace DSM {
 			nullptr,
 			IID_PPV_ARGS(texture.m_UploadHeap.GetAddressOf())));
 
-		UpdateSubresources(
-			cmdList, texture.m_Texture.Get(), texture.m_UploadHeap.Get(),
-			0, 0, static_cast<UINT>(subresources.size()), subresources.data());
 
+		BYTE* mappedData = nullptr;
+		ThrowIfFailed(texture.m_UploadHeap->Map(0, nullptr, reinterpret_cast<void**>(&mappedData)));
+		// 每一个子资源
+		for (std::size_t i = 0; i < subresources.size(); i++) {
+			auto destData = mappedData + footprint[i].Offset;	// 每个子资源的偏移
+			// 每一个深度
+			for (std::size_t z = 0; z < footprint[i].Footprint.Depth; z++) {
+				// 每一行
+				auto sliceSize = footprint[i].Footprint.RowPitch * numRows[i] * z;
+				for (std::size_t y = 0; y < numRows[i]; y++) {
+					auto rowSize = y * subresources[i].RowPitch;
+					memcpy(destData + sliceSize + rowSize,
+						static_cast<const BYTE*>(subresources[i].pData) + sliceSize + rowSize,
+						rowByteSize[i]);
+				}
+			}
+		}
+		texture.m_UploadHeap->Unmap(0, nullptr);
+
+		// 拷贝所有子资源
+		for (std::size_t i = 0; i < subresources.size(); i++) {
+			D3D12_TEXTURE_COPY_LOCATION dest{};
+			dest.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
+			dest.SubresourceIndex = i;
+			dest.pResource = texture.m_Texture.Get();
+			D3D12_TEXTURE_COPY_LOCATION src{};
+			src.Type = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT;
+			src.PlacedFootprint = footprint[i];
+			src.pResource = texture.m_UploadHeap.Get();
+			cmdList->CopyTextureRegion(&dest,0,0,0,&src,nullptr);
+		}
+		
 		D3D12_RESOURCE_BARRIER barrier{};
 		barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
-		barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
 		barrier.Transition = {
 			texture.m_Texture.Get(),
 			D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES,
@@ -272,11 +267,5 @@ namespace DSM {
 			D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE
 		};
 		cmdList->ResourceBarrier(1, &barrier);
-
-		if (imgData != nullptr) {
-			stbi_image_free(imgData);
-		}
-
-		return true;
 	}
 }

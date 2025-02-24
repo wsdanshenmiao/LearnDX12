@@ -14,7 +14,7 @@ int WinMain(
 #endif
 
 	try {
-		BlandAPP app(hInstance, L"Blend", 1024, 768);
+		StencilAPP app(hInstance, L"Blend", 1024, 768);
 		app.OnInit();
 		return app.Run();
 	}

@@ -10,11 +10,11 @@ using namespace DirectX;
 using namespace DSM::Geometry;
 
 namespace DSM {
-	BlandAPP::BlandAPP(HINSTANCE hAppInst, const std::wstring& mainWndCaption, int clientWidth, int clientHeight)
+	StencilAPP::StencilAPP(HINSTANCE hAppInst, const std::wstring& mainWndCaption, int clientWidth, int clientHeight)
 		:D3D12App(hAppInst, mainWndCaption, clientWidth, clientHeight) {
 	}
 
-	bool BlandAPP::OnInit()
+	bool StencilAPP::OnInit()
 	{
 		if (!D3D12App::OnInit()) {
 			return false;
@@ -49,7 +49,7 @@ namespace DSM {
 		return true;
 	}
 
-	void BlandAPP::OnUpdate(const CpuTimer& timer)
+	void StencilAPP::OnUpdate(const CpuTimer& timer)
 	{
 		auto& lightManager = LightManager::GetInstance();
 		auto& imgui = ImguiManager::GetInstance();
@@ -76,7 +76,7 @@ namespace DSM {
 		UpdateWaves(timer);
 	}
 
-	void BlandAPP::OnRender(const CpuTimer& timer)
+	void StencilAPP::OnRender(const CpuTimer& timer)
 	{
 		auto& imgui = ImguiManager::GetInstance();
 		auto& texManager = TextureManager::GetInstance();
@@ -156,7 +156,7 @@ namespace DSM {
 		ThrowIfFailed(m_CommandQueue->Signal(m_D3D12Fence.Get(), m_CurrentFence));
 	}
 
-	void BlandAPP::WaitForGPU()
+	void StencilAPP::WaitForGPU()
 	{
 		// 创建并设置事件
 		HANDLE eventHandle = CreateEvent(nullptr, false, false, nullptr);
@@ -167,7 +167,7 @@ namespace DSM {
 		CloseHandle(eventHandle);
 	}
 
-	void BlandAPP::RenderScene(RenderLayer layer)
+	void StencilAPP::RenderScene(RenderLayer layer)
 	{
 		auto& objManager = ObjectManager::GetInstance();
 		auto& modelManager = ModelManager::GetInstance();
@@ -204,7 +204,7 @@ namespace DSM {
 		}
 	}
 
-	bool BlandAPP::InitResource()
+	bool StencilAPP::InitResource()
 	{
 		CreateShader();
 		CreateObject();
@@ -218,7 +218,7 @@ namespace DSM {
 		return true;
 	}
 
-	void BlandAPP::CreateShader()
+	void StencilAPP::CreateShader()
 	{
 		auto shaderMacor = LightManager::GetInstance().GetLightsShaderMacros(
 			"MAXDIRLIGHTCOUNT", "MAXPOINTLIGHTCOUNT", "MAXSPOTLIGHTCOUNT");
@@ -244,7 +244,7 @@ namespace DSM {
 	/// <summary>
 	/// 创建几何体
 	/// </summary>
-	void BlandAPP::CreateObject()
+	void StencilAPP::CreateObject()
 	{
 		auto& modelManager = ModelManager::GetInstance();
 		auto& objManager = ObjectManager::GetInstance();
@@ -329,7 +329,7 @@ namespace DSM {
 			vertFunc);
 	}
 
-	void BlandAPP::CreateTexture()
+	void StencilAPP::CreateTexture()
 	{
 		auto& texManager = TextureManager::GetInstance();
 		auto& modelManager = ModelManager::GetInstance();
@@ -352,7 +352,7 @@ namespace DSM {
 		setTexture("WireFence", "Textures\\WireFence.dds", m_CommandList.Get());
 	}
 
-	void BlandAPP::CreateLights()
+	void StencilAPP::CreateLights()
 	{
 		auto& lightManager = LightManager::GetInstance();
 
@@ -362,7 +362,7 @@ namespace DSM {
 		lightManager.SetDirLight(0, std::move(dirLight0));
 	}
 
-	void BlandAPP::CreateFrameResource()
+	void StencilAPP::CreateFrameResource()
 	{
 		auto& objManager = ObjectManager::GetInstance();
 		
@@ -380,7 +380,7 @@ namespace DSM {
 		}
 	}
 	
-	void BlandAPP::CreateDescriptorHeaps()
+	void StencilAPP::CreateDescriptorHeaps()
 	{
 		auto& texManager = TextureManager::GetInstance();
 
@@ -388,7 +388,7 @@ namespace DSM {
 	}
 
 
-	void BlandAPP::CreateRootSignature()
+	void StencilAPP::CreateRootSignature()
 	{
 		// 初始化根参数，使用根描述符和根描述符表
 		auto count = 4;
@@ -442,7 +442,7 @@ namespace DSM {
 			IID_PPV_ARGS(m_RootSignature.GetAddressOf())));
 	}
 
-	void BlandAPP::CreatePSOs()
+	void StencilAPP::CreatePSOs()
 	{
 		D3D12_BLEND_DESC blendDesc{};
 		blendDesc.AlphaToCoverageEnable = false;
@@ -511,7 +511,7 @@ namespace DSM {
 			&alphaTestPso, IID_PPV_ARGS(m_PSOs["AlphaTest"].GetAddressOf())));
 	}
 
-	void BlandAPP::UpdateFrameResource(const CpuTimer& timer)
+	void StencilAPP::UpdateFrameResource(const CpuTimer& timer)
 	{
 		auto& imgui = ImguiManager::GetInstance();
 
@@ -551,7 +551,7 @@ namespace DSM {
 		currPassCB->Unmap(0, nullptr);
 	}
 
-	void BlandAPP::UpdateObjCB(const CpuTimer& timer)
+	void StencilAPP::UpdateObjCB(const CpuTimer& timer)
 	{
 		auto& objManager = ObjectManager::GetInstance();
 		auto& imgui = ImguiManager::GetInstance();
@@ -598,7 +598,7 @@ namespace DSM {
 		objManager.UpdateObjectsCB(m_CurrFrameResource, getObjCB, getMatCB);
 	}
 
-	void BlandAPP::UpdateWaves(const CpuTimer& timer)
+	void StencilAPP::UpdateWaves(const CpuTimer& timer)
 	{
 		// Every quarter second, generate a random wave.
 		static float t_base = 0.0f;
@@ -643,7 +643,7 @@ namespace DSM {
 		meshData->m_VertexBufferGPU = currWavesVB;
 	}
 
-	const std::array<const D3D12_STATIC_SAMPLER_DESC, 6> BlandAPP::GetStaticSamplers() const noexcept
+	const std::array<const D3D12_STATIC_SAMPLER_DESC, 6> StencilAPP::GetStaticSamplers() const noexcept
 	{
 		// 创建六种静态采样器
 		D3D12_STATIC_SAMPLER_DESC staticSampler{};

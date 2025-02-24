@@ -9,10 +9,10 @@
 #include "Waves.h"
 
 namespace DSM {
-	class BlandAPP : public D3D12App
+	class StencilAPP : public D3D12App
 	{
 	public:
-		BlandAPP(HINSTANCE hAppInst, const std::wstring& mainWndCaption, int clientWidth = 512, int clientHeight = 512);
+		StencilAPP(HINSTANCE hAppInst, const std::wstring& mainWndCaption, int clientWidth = 512, int clientHeight = 512);
 
 		bool OnInit() override;
 

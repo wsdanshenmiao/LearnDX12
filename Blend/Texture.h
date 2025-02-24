@@ -44,6 +44,13 @@ namespace DSM {
 			size_t dataSize,
 			ID3D12Device* device,
 			ID3D12GraphicsCommandList* cmdList);
+
+	private:
+		static void LoadTexture(
+			Texture& texture,
+			const std::vector<D3D12_SUBRESOURCE_DATA>& subresources,
+			ID3D12Device* device,
+			ID3D12GraphicsCommandList* cmdList);
 		
 	private:
 		template<typename T>
