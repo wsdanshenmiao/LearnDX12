@@ -8,10 +8,10 @@ namespace DSM {
 		const DirectX::XMFLOAT3& position) noexcept
 		:m_Scale(scale), m_Position(position)
 	{
-		SetRotate(rotation);
+		SetRotation(rotation);
 	}
 
-	void Transform::SetRotate(const DirectX::XMFLOAT3& rotation) noexcept
+	void Transform::SetRotation(const DirectX::XMFLOAT3& rotation) noexcept
 	{
 		auto quat = XMQuaternionRotationRollPitchYawFromVector(XMLoadFloat3(&rotation));
 		XMStoreFloat4(&m_Rotation, quat);
@@ -37,12 +37,12 @@ namespace DSM {
 		return XMMatrixRotationQuaternion(XMLoadFloat4(&m_Rotation));
 	}
 
-	DirectX::XMVECTOR Transform::GetTranslation() const noexcept
+	DirectX::XMVECTOR Transform::GetTranslationMatrix() const noexcept
 	{
 		return XMLoadFloat3(&m_Position);
 	}
 
-	DirectX::XMMATRIX Transform::GetWorldMatrix() const noexcept
+	DirectX::XMMATRIX Transform::GetLocalToWorldMatrix() const noexcept
 	{
 		DirectX::XMMATRIX world = XMMatrixAffineTransformation(
 			XMLoadFloat3(&m_Scale),

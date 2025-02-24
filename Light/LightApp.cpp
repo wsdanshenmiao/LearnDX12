@@ -107,11 +107,11 @@ namespace DSM {
 			auto& transform = obj.GetTransform();
 			XMMATRIX scale = imgui.m_Transform.GetScaleMatrix() * transform.GetScaleMatrix();
 			XMMATRIX rotate = imgui.m_Transform.GetRotateMatrix() * transform.GetRotateMatrix();
-			XMVECTOR position = XMVectorAdd(imgui.m_Transform.GetTranslation(), transform.GetTranslation());
+			XMVECTOR position = XMVectorAdd(imgui.m_Transform.GetTranslationMatrix(), transform.GetTranslationMatrix());
 			for (const auto& item : obj.GetAllRenderItems()) {
 				scale *= item->m_Transform.GetScaleMatrix();
 				rotate *= item->m_Transform.GetRotateMatrix();
-				XMVectorAdd(position, item->m_Transform.GetTranslation());
+				XMVectorAdd(position, item->m_Transform.GetTranslationMatrix());
 				auto world = scale * rotate * XMMatrixTranslationFromVector(position);
 				auto detWorld = XMMatrixDeterminant(world);
 				auto W = world;

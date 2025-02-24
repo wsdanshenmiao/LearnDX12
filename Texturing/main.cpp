@@ -14,7 +14,7 @@ int WinMain(
 #endif
 
 	try {
-		StencilAPP app(hInstance, L"Texturing", 1024, 768);
+		ShaderReflectAPP app(hInstance, L"Texturing", 1024, 768);
 		app.OnInit();
 		return app.Run();
 	}

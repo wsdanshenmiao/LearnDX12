@@ -8,10 +8,10 @@
 #include "Waves.h"
 
 namespace DSM {
-	class StencilAPP : public D3D12App
+	class ShaderReflectAPP : public D3D12App
 	{
 	public:
-		StencilAPP(HINSTANCE hAppInst, const std::wstring& mainWndCaption, int clientWidth = 512, int clientHeight = 512);
+		ShaderReflectAPP(HINSTANCE hAppInst, const std::wstring& mainWndCaption, int clientWidth = 512, int clientHeight = 512);
 
 		bool OnInit() override;
 
@@ -34,7 +34,7 @@ namespace DSM {
 		void CreateRootSignature();
 		void CreatePSOs();
 
-		void UpdateFrameResource(const CpuTimer& timer);
+		void UpdatePassCB(const CpuTimer& timer);
 		void UpdateObjCB(const CpuTimer& timer);
 		void UpdateWaves(const CpuTimer& timer);
 

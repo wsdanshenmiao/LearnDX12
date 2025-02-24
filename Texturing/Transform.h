@@ -13,8 +13,8 @@ namespace DSM {
 			const DirectX::XMFLOAT3& rotate,
 			const DirectX::XMFLOAT3& translate) noexcept;
 
-		void SetRotate(const DirectX::XMFLOAT3& rotation) noexcept;
-		void SetRotate(float x, float y, float z) noexcept;
+		void SetRotation(const DirectX::XMFLOAT3& rotation) noexcept;
+		void SetRotation(float x, float y, float z) noexcept;
 		void SetPosition(const DirectX::XMFLOAT3& position) noexcept;
 		void SetPosition(float x, float y, float z) noexcept;
 		void SetScale(const DirectX::XMFLOAT3& scale) noexcept;
@@ -26,8 +26,8 @@ namespace DSM {
 		DirectX::XMFLOAT3& GetScale() noexcept;
 		DirectX::XMMATRIX GetScaleMatrix() const noexcept;
 		DirectX::XMMATRIX GetRotateMatrix() const noexcept;
-		DirectX::XMVECTOR GetTranslation() const noexcept;
-		DirectX::XMMATRIX GetWorldMatrix() const noexcept;
+		DirectX::XMVECTOR GetTranslationMatrix() const noexcept;
+		DirectX::XMMATRIX GetLocalToWorldMatrix() const noexcept;
 
 	private:
 		DirectX::XMFLOAT3 m_Scale = { 1,1,1 };
