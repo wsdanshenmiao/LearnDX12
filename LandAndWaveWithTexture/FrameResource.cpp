@@ -13,7 +13,7 @@ namespace DSM {
 		UINT byteSize,
 		UINT elementSize,
 		const std::string& bufferName) {
-		AddBuffer(byteSize, elementSize, bufferName, true);
+		AddUploadBuffer(byteSize, elementSize, bufferName, true);
 	}
 
 	void FrameResource::AddConstantBuffer(const std::string& name, ID3D12Resource* buffer)
@@ -25,10 +25,10 @@ namespace DSM {
 		UINT byteSize,
 		UINT elementSize,
 		const std::string& bufferName) {
-		AddBuffer(byteSize, elementSize, bufferName, false);
+		AddUploadBuffer(byteSize, elementSize, bufferName, false);
 	}
 
-	void FrameResource::AddBuffer(
+	void FrameResource::AddUploadBuffer(
 		UINT byteSize,
 		UINT elementSize,
 		const std::string& bufferName,

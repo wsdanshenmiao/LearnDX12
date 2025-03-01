@@ -13,7 +13,7 @@ namespace DSM {
 		UINT byteSize,
 		UINT elementSize,
 		const std::string& bufferName) {
-		AddBuffer(byteSize, elementSize, bufferName, true);
+		AddUploadBuffer(byteSize, elementSize, bufferName, true);
 	}
 
 	void FrameResource::AddConstantBuffer(const std::string& name, ID3D12Resource* buffer)
@@ -25,18 +25,18 @@ namespace DSM {
 		UINT byteSize,
 		UINT elementSize,
 		const std::string& bufferName) {
-		AddBuffer(byteSize, elementSize, bufferName, false);
+		AddUploadBuffer(byteSize, elementSize, bufferName, false);
 	}
 
-	void FrameResource::AddBuffer(
-		UINT byteSize,
+	void FrameResource::AddUploadBuffer(
+		UINT elementbyteSize,
 		UINT elementSize,
 		const std::string& bufferName,
 		bool isConstant)
 	{
 		ComPtr<ID3D12Resource> pResource;
 		
-		UINT elementByteSize = isConstant ? D3DUtil::CalcCBByteSize(byteSize) : byteSize;
+		UINT elementByteSize = isConstant ? D3DUtil::CalcCBByteSize(elementbyteSize) : elementbyteSize;
 		D3D12_HEAP_PROPERTIES heapProperties{};
 		heapProperties.Type = D3D12_HEAP_TYPE_UPLOAD;
 

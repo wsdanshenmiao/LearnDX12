@@ -20,12 +20,12 @@ namespace DSM {
 		Reflection = 4,
 		Count
 	};
-	
+
 	class ObjectManager : public Singleton<ObjectManager>
 	{
 	public:
 		using ObjectMap = std::map<std::string, std::shared_ptr<Object>>;
-		
+
 		bool AddObject(std::shared_ptr<Object> object, RenderLayer layer) noexcept;
 		//bool RemoveObject(std::shared_ptr<Object> object) noexcept;
 
@@ -46,7 +46,7 @@ namespace DSM {
 			FrameResource* frameReource,
 			ObjCBFunc objFunc,
 			MatCBFunc matFunc);
-		
+
 	protected:
 		friend class Singleton<ObjectManager>;
 		ObjectManager();
@@ -66,26 +66,22 @@ namespace DSM {
 
 		for (std::size_t i = 0; i < m_Objects.size(); ++i) {
 			for (auto& [name, obj] : m_Objects[i]) {
-				auto it = frameReource->m_Buffers.find(name);
-				if (it == frameReource->m_Buffers.end() || obj->GetModel() == nullptr) continue;
-				
+				auto it = frameReource->m_Resources.find(name);
+				if (it == frameReource->m_Resources.end() || obj->GetModel() == nullptr) continue;
+
 				auto resource = it->second;
-					
-				BYTE* mappedData = nullptr;
-				ThrowIfFailed(resource->Map(0, nullptr,reinterpret_cast<void**>(&mappedData)))
-					
+
+				BYTE* mappedData = static_cast<BYTE*>(resource.m_MappedBaseAddress);
 				decltype(auto) objCB = objFunc(*obj, static_cast<RenderLayer>(i));
 				auto objByteSize = D3DUtil::CalcCBByteSize(sizeof(objCB));
 				memcpy(mappedData, &objCB, objByteSize);
-					
+
 				std::size_t counter = 0;
 				for (const auto& mat : obj->GetModel()->GetAllMaterial()) {
 					decltype(auto) matCB = matFunc(mat);
 					auto matByteSize = D3DUtil::CalcCBByteSize(sizeof(matCB));
 					memcpy(mappedData + objByteSize + counter++ * matByteSize, &matCB, matByteSize);
 				}
-					
-				resource->Unmap(0,nullptr);
 			}
 		}
 	}

@@ -30,6 +30,8 @@ namespace DSM {
 			const WCHAR* outputFileName = nullptr);
 
 		static ComPtr<ID3DBlob> LoadShaderBinary(const std::wstring& filename);
+
+		static std::size_t AlignArbitrary(std::size_t size, std::uint32_t alignment);
 	};
 
 	class DxException

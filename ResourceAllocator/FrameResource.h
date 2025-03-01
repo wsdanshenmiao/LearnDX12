@@ -3,7 +3,7 @@
 #define __FRAMERESOURCE__H__
 
 #include "Pubh.h"
-#include "UploadBuffer.h"
+#include "D3D12Allocatioin.h"
 
 namespace DSM {
 
@@ -26,18 +26,21 @@ namespace DSM {
 			UINT elementSize,
 			const std::string& bufferName);
 
-			
+
 		template <class T>
 		using ComPtr = Microsoft::WRL::ComPtr<T>;
 		ComPtr<ID3D12Device> m_Device;
 		ComPtr<ID3D12CommandAllocator> m_CmdListAlloc;						// 每个帧资源都有一个命令列表分配器
-		
-		std::unordered_map<std::string, ComPtr<ID3D12Resource>> m_Buffers;	// 缓冲区资源
+
+		std::unique_ptr<D3D12DefaultBufferAllocator> m_DefaultBufferAllocator;
+		std::unique_ptr<D3D12UploadBufferAllocator> m_UploadBufferAllocator;
+		std::unordered_map<std::string, D3D12ResourceLocation> m_Resources;
+
 		UINT64 m_Fence = 0;													// 当前帧资源的围栏值
 
 	private:
-		void AddBuffer(
-			UINT byteSize,
+		void AddUploadBuffer(
+			UINT elementByteSize,
 			UINT elementSize,
 			const std::string& bufferName,
 			bool isConstant);

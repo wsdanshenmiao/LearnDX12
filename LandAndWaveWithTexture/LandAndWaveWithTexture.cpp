@@ -11,11 +11,11 @@ using namespace DirectX;
 using namespace DSM::Geometry;
 
 namespace DSM {
-	ShaderReflectAPP::ShaderReflectAPP(HINSTANCE hAppInst, const std::wstring& mainWndCaption, int clientWidth, int clientHeight)
+	ResourceAllocatorAPP::ResourceAllocatorAPP(HINSTANCE hAppInst, const std::wstring& mainWndCaption, int clientWidth, int clientHeight)
 		:D3D12App(hAppInst, mainWndCaption, clientWidth, clientHeight) {
 	}
 
-	bool ShaderReflectAPP::OnInit()
+	bool ResourceAllocatorAPP::OnInit()
 	{
 		if (!D3D12App::OnInit()) {
 			return false;
@@ -51,7 +51,7 @@ namespace DSM {
 		return true;
 	}
 
-	void ShaderReflectAPP::OnUpdate(const CpuTimer& timer)
+	void ResourceAllocatorAPP::OnUpdate(const CpuTimer& timer)
 	{
 		m_CurrFrameIndex = (m_CurrFrameIndex + 1) % FrameCount;
 		m_CurrFrameResource = m_FrameResources[m_CurrFrameIndex].get();
@@ -71,7 +71,7 @@ namespace DSM {
 		UpdateWaves(timer);
 	}
 
-	void ShaderReflectAPP::OnRender(const CpuTimer& timer)
+	void ResourceAllocatorAPP::OnRender(const CpuTimer& timer)
 	{
 		auto& imgui = ImguiManager::GetInstance();
 
@@ -132,7 +132,7 @@ namespace DSM {
 		ThrowIfFailed(m_CommandQueue->Signal(m_D3D12Fence.Get(), m_CurrentFence));
 	}
 
-	void ShaderReflectAPP::WaitForGPU()
+	void ResourceAllocatorAPP::WaitForGPU()
 	{
 		// 创建并设置事件
 		HANDLE eventHandle = CreateEvent(nullptr, false, false, nullptr);
@@ -143,7 +143,7 @@ namespace DSM {
 		CloseHandle(eventHandle);
 	}
 
-	void ShaderReflectAPP::RenderScene()
+	void ResourceAllocatorAPP::RenderScene()
 	{
 		auto& texManager = TextureManager::GetInstance();
 		auto& objManager = ObjectManager::GetInstance();
@@ -192,7 +192,7 @@ namespace DSM {
 		}
 	}
 
-	bool ShaderReflectAPP::InitResource()
+	bool ResourceAllocatorAPP::InitResource()
 	{
 		CreateShader();
 		CreateObject();
@@ -206,7 +206,7 @@ namespace DSM {
 		return true;
 	}
 
-	void ShaderReflectAPP::CreateShader()
+	void ResourceAllocatorAPP::CreateShader()
 	{
 		auto shaderMacor = LightManager::GetInstance().GetLightsShaderMacros(
 			"MAXDIRLIGHTCOUNT", "MAXPOINTLIGHTCOUNT", "MAXSPOTLIGHTCOUNT");
@@ -225,7 +225,7 @@ namespace DSM {
 	/// <summary>
 	/// 创建几何体
 	/// </summary>
-	void ShaderReflectAPP::CreateObject()
+	void ResourceAllocatorAPP::CreateObject()
 	{
 		auto& modelManager = ModelManager::GetInstance();
 		auto& objManager = ObjectManager::GetInstance();
@@ -302,7 +302,7 @@ namespace DSM {
 			vertFunc);
 	}
 
-	void ShaderReflectAPP::CreateTexture()
+	void ResourceAllocatorAPP::CreateTexture()
 	{
 		auto& texManager = TextureManager::GetInstance();
 		auto& modelManager = ModelManager::GetInstance();
@@ -326,7 +326,7 @@ namespace DSM {
 		setTexture("Waves", "Textures\\water1.dds", m_CommandList.Get());
 	}
 
-	void ShaderReflectAPP::CreateLights()
+	void ResourceAllocatorAPP::CreateLights()
 	{
 		auto& lightManager = LightManager::GetInstance();
 
@@ -336,7 +336,7 @@ namespace DSM {
 		lightManager.SetDirLight(0, std::move(dirLight0));
 	}
 
-	void ShaderReflectAPP::CreateFrameResource()
+	void ResourceAllocatorAPP::CreateFrameResource()
 	{
 		auto& objManager = ObjectManager::GetInstance();
 		
@@ -363,7 +363,7 @@ namespace DSM {
 		}
 	}
 	
-	void ShaderReflectAPP::CreateDescriptorHeaps()
+	void ResourceAllocatorAPP::CreateDescriptorHeaps()
 	{
 		auto& texManager = TextureManager::GetInstance();
 
@@ -371,7 +371,7 @@ namespace DSM {
 	}
 
 
-	void ShaderReflectAPP::CreateRootSignature()
+	void ResourceAllocatorAPP::CreateRootSignature()
 	{
 		// 初始化根参数，使用根描述符和根描述符表
 		auto count = 4;
@@ -425,7 +425,7 @@ namespace DSM {
 			IID_PPV_ARGS(m_RootSignature.GetAddressOf())));
 	}
 
-	void ShaderReflectAPP::CreatePSOs()
+	void ResourceAllocatorAPP::CreatePSOs()
 	{
 		D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc{};
 		ZeroMemory(&psoDesc, sizeof(D3D12_GRAPHICS_PIPELINE_STATE_DESC));
@@ -460,7 +460,7 @@ namespace DSM {
 			&psoDesc, IID_PPV_ARGS(m_PSOs["WireFrame"].GetAddressOf())));
 	}
 
-	void ShaderReflectAPP::UpdatePassCB(const CpuTimer& timer)
+	void ResourceAllocatorAPP::UpdatePassCB(const CpuTimer& timer)
 	{
 		auto& imgui = ImguiManager::GetInstance();
 
@@ -497,7 +497,7 @@ namespace DSM {
 		currPassCB->Unmap(0, nullptr);
 	}
 
-	void ShaderReflectAPP::UpdateObjCB(const CpuTimer& timer)
+	void ResourceAllocatorAPP::UpdateObjCB(const CpuTimer& timer)
 	{
 		auto& objManager = ObjectManager::GetInstance();
 		auto& imgui = ImguiManager::GetInstance();
@@ -551,7 +551,7 @@ namespace DSM {
 		}
 	}
 
-	void ShaderReflectAPP::UpdateWaves(const CpuTimer& timer)
+	void ResourceAllocatorAPP::UpdateWaves(const CpuTimer& timer)
 	{
 		// Every quarter second, generate a random wave.
 		static float t_base = 0.0f;
@@ -596,7 +596,7 @@ namespace DSM {
 		meshData->m_VertexBufferGPU = currWavesVB;
 	}
 
-	const std::array<const D3D12_STATIC_SAMPLER_DESC, 6> ShaderReflectAPP::GetStaticSamplers() const noexcept
+	const std::array<const D3D12_STATIC_SAMPLER_DESC, 6> ResourceAllocatorAPP::GetStaticSamplers() const noexcept
 	{
 		// 创建六种静态采样器
 		D3D12_STATIC_SAMPLER_DESC staticSampler{};

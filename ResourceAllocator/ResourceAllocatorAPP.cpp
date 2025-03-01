@@ -1,4 +1,4 @@
-#include "ShaderReflectAPP.h"
+#include "ResourceAllocatorAPP.h"
 #include "ImguiManager.h"
 #include "Vertex.h"
 #include "ModelManager.h"
@@ -10,11 +10,11 @@ using namespace DirectX;
 using namespace DSM::Geometry;
 
 namespace DSM {
-	ShaderReflectAPP::ShaderReflectAPP(HINSTANCE hAppInst, const std::wstring& mainWndCaption, int clientWidth, int clientHeight)
+	ResourceAllocatorAPP::ResourceAllocatorAPP(HINSTANCE hAppInst, const std::wstring& mainWndCaption, int clientWidth, int clientHeight)
 		:D3D12App(hAppInst, mainWndCaption, clientWidth, clientHeight) {
 	}
 
-	bool ShaderReflectAPP::OnInit()
+	bool ResourceAllocatorAPP::OnInit()
 	{
 		if (!D3D12App::OnInit()) {
 			return false;
@@ -22,7 +22,7 @@ namespace DSM {
 
 		// 为创建帧资源，因此使用基类的命令列表堆
 		ThrowIfFailed(m_CommandList->Reset(m_DirectCmdListAlloc.Get(), nullptr));
-		
+
 		// 注意初始化顺序
 		LightManager::Create(m_D3D12Device.Get(), FrameCount);
 		ObjectManager::Create();
@@ -40,7 +40,7 @@ namespace DSM {
 		if (!InitResource()) {
 			return false;
 		}
-		
+
 		ThrowIfFailed(m_CommandList->Close());
 		ID3D12CommandList* pCmdLists[] = { m_CommandList.Get() };
 		m_CommandQueue->ExecuteCommandLists(_countof(pCmdLists), pCmdLists);
@@ -49,11 +49,11 @@ namespace DSM {
 		return true;
 	}
 
-	void ShaderReflectAPP::OnUpdate(const CpuTimer& timer)
+	void ResourceAllocatorAPP::OnUpdate(const CpuTimer& timer)
 	{
 		auto& lightManager = LightManager::GetInstance();
 		auto& imgui = ImguiManager::GetInstance();
-		
+
 		m_CurrFrameIndex = (m_CurrFrameIndex + 1) % FrameCount;
 		m_CurrFrameResource = m_FrameResources[m_CurrFrameIndex].get();
 
@@ -75,7 +75,7 @@ namespace DSM {
 		UpdateObjCB(timer);
 	}
 
-	void ShaderReflectAPP::OnRender(const CpuTimer& timer)
+	void ResourceAllocatorAPP::OnRender(const CpuTimer& timer)
 	{
 		auto& imgui = ImguiManager::GetInstance();
 		auto& texManager = TextureManager::GetInstance();
@@ -110,16 +110,16 @@ namespace DSM {
 		m_CommandList->OMSetRenderTargets(1, &currBackBV, true, &dsv);
 
 
-		
+
 
 		ID3D12DescriptorHeap* texHeap[] = { texManager.GetDescriptorHeap() };
 		m_CommandList->SetDescriptorHeaps(_countof(texHeap), texHeap);
 
 		m_CommandList->SetGraphicsRootSignature(m_RootSignature.Get());
 
-		auto& constBuffers = m_CurrFrameResource->m_Buffers;
+		auto& constBuffers = m_CurrFrameResource->m_Resources;
 		auto& [passName, passConstant] = *constBuffers.find(typeid(PassConstants).name());
-		m_CommandList->SetGraphicsRootConstantBufferView(1, passConstant->GetGPUVirtualAddress());
+		m_CommandList->SetGraphicsRootConstantBufferView(1, passConstant.m_GPUVirtualAddress);
 
 		auto lightAddress = LightManager::GetInstance().GetGPUVirtualAddress();
 		m_CommandList->SetGraphicsRootConstantBufferView(2, lightAddress);
@@ -139,8 +139,8 @@ namespace DSM {
 		RenderScene(RenderLayer::Transparent);
 
 
-		
-		
+
+
 		ImguiManager::GetInstance().RenderImGui(m_CommandList.Get());
 
 		// 将资源转换为呈现状态
@@ -168,7 +168,7 @@ namespace DSM {
 		ThrowIfFailed(m_CommandQueue->Signal(m_D3D12Fence.Get(), m_CurrentFence));
 	}
 
-	void ShaderReflectAPP::WaitForGPU()
+	void ResourceAllocatorAPP::WaitForGPU()
 	{
 		// 创建并设置事件
 		HANDLE eventHandle = CreateEvent(nullptr, false, false, nullptr);
@@ -179,7 +179,7 @@ namespace DSM {
 		CloseHandle(eventHandle);
 	}
 
-	void ShaderReflectAPP::RenderScene(RenderLayer layer)
+	void ResourceAllocatorAPP::RenderScene(RenderLayer layer)
 	{
 		auto& objManager = ObjectManager::GetInstance();
 		auto& modelManager = ModelManager::GetInstance();
@@ -196,9 +196,9 @@ namespace DSM {
 				m_CommandList->IASetVertexBuffers(0, 1, &vertexBV);
 				m_CommandList->IASetIndexBuffer(&indexBV);
 
-				auto objHandle = m_CurrFrameResource->m_Buffers[name]->GetGPUVirtualAddress();
+				auto objHandle = m_CurrFrameResource->m_Resources[name].m_GPUVirtualAddress;
 				m_CommandList->SetGraphicsRootConstantBufferView(0, objHandle);
-				
+
 				for (const auto& [name, drawItem] : meshData->m_DrawArgs) {
 					auto matIndex = model->GetMesh(name)->m_MaterialIndex;
 					const auto& mat = model->GetMaterial(matIndex);
@@ -207,7 +207,7 @@ namespace DSM {
 					std::string texName = diffuseTex == nullptr ? "" : *diffuseTex;
 					auto handle = texManager.GetTextureResourceView(texName, m_CbvSrvUavDescriptorSize);
 					m_CommandList->SetGraphicsRootDescriptorTable(4, handle);
-					
+
 					auto matHandle = objHandle + objCBSize + matIndex * matCBSize;
 					m_CommandList->SetGraphicsRootConstantBufferView(3, matHandle);
 
@@ -217,7 +217,7 @@ namespace DSM {
 		}
 	}
 
-	bool ShaderReflectAPP::InitResource()
+	bool ResourceAllocatorAPP::InitResource()
 	{
 		CreateShader();
 		CreateObject();
@@ -231,12 +231,12 @@ namespace DSM {
 		return true;
 	}
 
-	void ShaderReflectAPP::CreateShader()
+	void ResourceAllocatorAPP::CreateShader()
 	{
 		auto shaderMacor = LightManager::GetInstance().GetLightsShaderMacros(
 			"MAXDIRLIGHTCOUNT", "MAXPOINTLIGHTCOUNT", "MAXSPOTLIGHTCOUNT");
 
-		shaderMacor.push_back({"ENABLEFOG", "1"});
+		shaderMacor.push_back({ "ENABLEFOG", "1" });
 		shaderMacor.push_back({ nullptr, nullptr });	// 充当结束标志
 
 		auto colorVS = D3DUtil::CompileShader(L"Shaders\\Color.hlsl", shaderMacor.data(), "VS", "vs_5_1");
@@ -244,9 +244,9 @@ namespace DSM {
 		auto lightVS = D3DUtil::CompileShader(L"Shaders\\Light.hlsl", shaderMacor.data(), "VS", "vs_5_1");
 		auto lightPS = D3DUtil::CompileShader(L"Shaders\\Light.hlsl", shaderMacor.data(), "PS", "ps_5_1");
 
-		shaderMacor.insert(--shaderMacor.end(), {"ALPHATEST", "1"});
+		shaderMacor.insert(--shaderMacor.end(), { "ALPHATEST", "1" });
 		auto lightAlphaTestPS = D3DUtil::CompileShader(L"Shaders\\Light.hlsl", shaderMacor.data(), "PS", "ps_5_1");
-		
+
 		m_ShaderByteCode.insert(std::make_pair("ColorVS", colorVS));
 		m_ShaderByteCode.insert(std::make_pair("ColorPS", colorPS));
 		m_ShaderByteCode.insert(std::make_pair("LightVS", lightVS));
@@ -257,7 +257,7 @@ namespace DSM {
 	/// <summary>
 	/// 创建几何体
 	/// </summary>
-	void ShaderReflectAPP::CreateObject()
+	void ResourceAllocatorAPP::CreateObject()
 	{
 		auto& modelManager = ModelManager::GetInstance();
 		auto& objManager = ObjectManager::GetInstance();
@@ -273,16 +273,16 @@ namespace DSM {
 		auto elenaMirror = std::make_shared<Object>(elenaModel->GetName() + "Mirror", elenaModel);
 		elenaMirror->GetTransform().SetScale({ 2,2,2 });
 		objManager.AddObject(elenaMirror, RenderLayer::Reflection);
-		
+
 		const Model* sponzaModel = modelManager.LoadModelFromeFile(
 			"Sponza",
 			"Models\\Sponza\\Sponza.gltf",
 			m_CommandList.Get());
-		auto sponza = std::make_shared<Object>(sponzaModel->GetName(),sponzaModel);
+		auto sponza = std::make_shared<Object>(sponzaModel->GetName(), sponzaModel);
 		sponza->GetTransform().SetScale({ 0.2,0.2,0.2 });
-		sponza->GetTransform().SetRotation(0,MathHelper::PI / 2,0);
+		sponza->GetTransform().SetRotation(0, MathHelper::PI / 2, 0);
 		objManager.AddObject(sponza, RenderLayer::Opaque);
-		
+
 
 		// 提前为所有模型生成网格数据
 		auto vertFunc = [](const Vertex& vert) {
@@ -298,29 +298,29 @@ namespace DSM {
 			vertFunc);
 	}
 
-	void ShaderReflectAPP::CreateTexture()
+	void ResourceAllocatorAPP::CreateTexture()
 	{
 		auto& texManager = TextureManager::GetInstance();
 		auto& modelManager = ModelManager::GetInstance();
 
 		// 读取并创建纹理
-		auto setTexture = [&texManager,&modelManager](
+		auto setTexture = [&texManager, &modelManager](
 			const std::string& modelname,
 			const std::string& filename,
 			ID3D12GraphicsCommandList* cmdList) {
-			if (auto tex = texManager.LoadTextureFromFile(filename, cmdList); tex != nullptr) {
-				if (auto model = modelManager.GetModel(modelname); model != nullptr) {
-					auto& landMat = model->GetMaterial(model->GetMesh(modelname)->m_MaterialIndex);
-					landMat.Set("Diffuse", tex->GetName());
+				if (auto tex = texManager.LoadTextureFromFile(filename, cmdList); tex != nullptr) {
+					if (auto model = modelManager.GetModel(modelname); model != nullptr) {
+						auto& landMat = model->GetMaterial(model->GetMesh(modelname)->m_MaterialIndex);
+						landMat.Set("Diffuse", tex->GetName());
+					}
 				}
-			}
-		};
+			};
 
 		setTexture("Water", "Textures\\water1.dds", m_CommandList.Get());
 		setTexture("Mirror", "Textures\\ice.dds", m_CommandList.Get());
 	}
 
-	void ShaderReflectAPP::CreateLights()
+	void ResourceAllocatorAPP::CreateLights()
 	{
 		auto& lightManager = LightManager::GetInstance();
 
@@ -330,21 +330,21 @@ namespace DSM {
 		lightManager.SetDirLight(0, std::move(dirLight0));
 	}
 
-	void ShaderReflectAPP::CreateFrameResource()
+	void ResourceAllocatorAPP::CreateFrameResource()
 	{
 		auto& objManager = ObjectManager::GetInstance();
-		
+
 		for (auto& resource : m_FrameResources) {
 			resource = std::make_unique<FrameResource>(m_D3D12Device.Get());
+			objManager.CreateObjectsResource(resource.get(), sizeof(ObjectConstants), sizeof(MaterialConstants));
 			resource->AddConstantBuffer(
 				sizeof(PassConstants),
 				1,
 				typeid(PassConstants).name());
-			objManager.CreateObjectsResource(resource.get(),sizeof(ObjectConstants),sizeof(MaterialConstants));
 		}
 	}
-	
-	void ShaderReflectAPP::CreateDescriptorHeaps()
+
+	void ResourceAllocatorAPP::CreateDescriptorHeaps()
 	{
 		auto& texManager = TextureManager::GetInstance();
 
@@ -352,7 +352,7 @@ namespace DSM {
 	}
 
 
-	void ShaderReflectAPP::CreateRootSignature()
+	void ResourceAllocatorAPP::CreateRootSignature()
 	{
 		// 初始化根参数，使用根描述符和根描述符表
 		auto count = 4;
@@ -406,7 +406,7 @@ namespace DSM {
 			IID_PPV_ARGS(m_RootSignature.GetAddressOf())));
 	}
 
-	void ShaderReflectAPP::CreatePSOs()
+	void ResourceAllocatorAPP::CreatePSOs()
 	{
 		D3D12_BLEND_DESC blendDesc{};
 		blendDesc.AlphaToCoverageEnable = false;
@@ -421,7 +421,7 @@ namespace DSM {
 		blendDesc.RenderTarget[0].BlendOpAlpha = D3D12_BLEND_OP_ADD;
 		blendDesc.RenderTarget[0].LogicOp = D3D12_LOGIC_OP_NOOP;
 		blendDesc.RenderTarget[0].RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;
-		
+
 		D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc{};
 		ZeroMemory(&psoDesc, sizeof(D3D12_GRAPHICS_PIPELINE_STATE_DESC));
 		psoDesc.pRootSignature = m_RootSignature.Get();
@@ -468,7 +468,7 @@ namespace DSM {
 
 		// 开启Alpha测试
 		auto alphaTestPso = psoDesc;
-		alphaTestPso.PS = {m_ShaderByteCode["LightAlphaTestPS"]->GetBufferPointer(),
+		alphaTestPso.PS = { m_ShaderByteCode["LightAlphaTestPS"]->GetBufferPointer(),
 		m_ShaderByteCode["LightAlphaTestPS"]->GetBufferSize()
 		};
 		alphaTestPso.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
@@ -505,11 +505,11 @@ namespace DSM {
 		reflectionPso.RasterizerState.FrontCounterClockwise = true;	// 由于是镜面中的物体，法线会反向，因此绘制逆时针的三角形
 		ThrowIfFailed(m_D3D12Device->CreateGraphicsPipelineState(
 			&reflectionPso, IID_PPV_ARGS(m_PSOs["Reflections"].GetAddressOf())));
-		
-		
+
+
 	}
 
-	void ShaderReflectAPP::UpdatePassCB(const CpuTimer& timer)
+	void ResourceAllocatorAPP::UpdatePassCB(const CpuTimer& timer)
 	{
 		auto& imgui = ImguiManager::GetInstance();
 
@@ -541,15 +541,12 @@ namespace DSM {
 		passConstants.m_FogStart = imgui.m_FogStart;
 		passConstants.m_FogRange = imgui.m_FogRange;
 
-		auto& currPassCB = m_CurrFrameResource->m_Buffers.find(typeid(PassConstants).name())->second;
-		BYTE* mappedData = nullptr;
+		auto currPassCB = m_CurrFrameResource->m_Resources[typeid(PassConstants).name()];
 		auto byteSize = D3DUtil::CalcCBByteSize(sizeof(PassConstants));
-		currPassCB->Map(0,nullptr,reinterpret_cast<void**>(&mappedData));
-		memcpy(mappedData, &passConstants, byteSize);
-		currPassCB->Unmap(0, nullptr);
+		memcpy(currPassCB.m_MappedBaseAddress, &passConstants, byteSize);
 	}
 
-	void ShaderReflectAPP::UpdateObjCB(const CpuTimer& timer)
+	void ResourceAllocatorAPP::UpdateObjCB(const CpuTimer& timer)
 	{
 		auto& objManager = ObjectManager::GetInstance();
 		auto& imgui = ImguiManager::GetInstance();
@@ -557,7 +554,7 @@ namespace DSM {
 		XMVECTOR plane = XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f);
 		auto mirror = objManager.GetObjectByName("Mirror", RenderLayer::Mirror);
 		// 计算反射平面
-		if (mirror != nullptr && mirror->GetModel()!= nullptr) {
+		if (mirror != nullptr && mirror->GetModel() != nullptr) {
 			auto model = mirror->GetModel();
 			auto normal = model->GetMesh(model->GetName())->m_Mesh.m_Vertices[0].m_Normal;
 			XMFLOAT3 pos = mirror->GetTransform().GetPosition();
@@ -568,7 +565,7 @@ namespace DSM {
 			XMStoreFloat3(&normal, XMVector3Normalize(plane));
 			float d;
 			XMStoreFloat(&d, XMVector3Dot(plane, P));
-			plane = XMVectorSet(normal.x ,normal.y ,normal.z ,d);
+			plane = XMVectorSet(normal.x, normal.y, normal.z, d);
 			XMStoreFloat4(&m_ReflectPlane, plane);
 		}
 
@@ -585,7 +582,7 @@ namespace DSM {
 				XMMATRIX refM = XMMatrixReflect(plane);
 				world *= refM;
 			}
-			
+
 			XMStoreFloat4x4(&ret.m_World, XMMatrixTranspose(world));
 			XMStoreFloat4x4(&ret.m_WorldInvTranspos, MathHelper::InverseTransposeWithOutTranslate(world));
 
@@ -614,12 +611,12 @@ namespace DSM {
 				ret.m_Alpha = *alpha;
 			}
 			return ret;
-		};
+			};
 
 		objManager.UpdateObjectsCB(m_CurrFrameResource, getObjCB, getMatCB);
 	}
 
-	const std::array<const D3D12_STATIC_SAMPLER_DESC, 6> ShaderReflectAPP::GetStaticSamplers() const noexcept
+	const std::array<const D3D12_STATIC_SAMPLER_DESC, 6> ResourceAllocatorAPP::GetStaticSamplers() const noexcept
 	{
 		// 创建六种静态采样器
 		D3D12_STATIC_SAMPLER_DESC staticSampler{};

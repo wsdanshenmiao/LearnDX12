@@ -136,6 +136,11 @@ namespace DSM {
 		return blob;
 	}
 
+	std::size_t D3DUtil::AlignArbitrary(std::size_t size, std::uint32_t alignment)
+	{
+		return ((size + alignment - 1) & ~(alignment - 1));
+	}
+
 	DxException::DxException(HRESULT hr, const std::wstring& functionName, const std::wstring& filename, int lineNumber) :
 		ErrorCode(hr),
 		FunctionName(functionName),

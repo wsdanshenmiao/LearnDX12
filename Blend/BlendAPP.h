@@ -9,10 +9,10 @@
 #include "Waves.h"
 
 namespace DSM {
-	class ShaderReflectAPP : public D3D12App
+	class ResourceAllocatorAPP : public D3D12App
 	{
 	public:
-		ShaderReflectAPP(HINSTANCE hAppInst, const std::wstring& mainWndCaption, int clientWidth = 512, int clientHeight = 512);
+		ResourceAllocatorAPP(HINSTANCE hAppInst, const std::wstring& mainWndCaption, int clientWidth = 512, int clientHeight = 512);
 
 		bool OnInit() override;
 

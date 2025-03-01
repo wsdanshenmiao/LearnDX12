@@ -1,4 +1,4 @@
-targetName = "ShaderReflect"
+targetName = "ResourceAllocator"
 target(targetName)
     set_kind("binary")
     set_targetdir(path.join(binDir, targetName))

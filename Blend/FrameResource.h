@@ -36,8 +36,8 @@ namespace DSM {
 		UINT64 m_Fence = 0;													// 当前帧资源的围栏值
 
 	private:
-		void AddBuffer(
-			UINT byteSize,
+		void AddUploadBuffer(
+			UINT elementByteSize,
 			UINT elementSize,
 			const std::string& bufferName,
 			bool isConstant);
