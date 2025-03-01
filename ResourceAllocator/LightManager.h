@@ -6,7 +6,8 @@
 #include "Light.h"
 
 namespace DSM {
-
+	class FrameResource;
+	
 	class LightManager : public Singleton<LightManager>
 	{
 
@@ -17,8 +18,8 @@ namespace DSM {
 		std::size_t GetDirLightCount()const;
 		std::size_t GetPointLightCount() const;
 		std::size_t GetSpotLightCount() const;
+		const std::string& GetLightBufferName() const;
 		UINT GetLightByteSize() const;
-		D3D12_GPU_VIRTUAL_ADDRESS GetGPUVirtualAddress() const;
 		std::vector<D3D_SHADER_MACRO> GetLightsShaderMacros(
 			const char* dirName,
 			const char* pointName,
@@ -28,27 +29,21 @@ namespace DSM {
 		void SetPointLight(std::size_t index, const PointLight& light);
 		void SetSpotLight(std::size_t index, const SpotLight& light);
 
-		void UpdateLight();
+		void UpdateLight(FrameResource* frameResource);
 
 	protected:
 		friend Singleton<LightManager>;
-		LightManager(ID3D12Device* device,
+		LightManager(
 			UINT frameCount,
 			int maxDirLight = 3,
 			int maxPointLight = 1,
 			int maxSpotLight = 1);
 		virtual ~LightManager() = default;
 
-		void CreateLightBuffer(ID3D12Device* device);
-
 	private:
-
-		ComPtr<ID3D12Resource> m_LightsUploaders;
-
+		const std::string m_LightBufferName = "LightBuffer";
 		const UINT m_FrameCount;
-		UINT m_Counter;
 		UINT m_NumFrameDirty;
-		UINT m_LightByteSize;
 
 		std::vector<DirectionalLight> m_DirLights;
 		std::vector<PointLight> m_PointLights;

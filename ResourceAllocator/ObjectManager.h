@@ -70,8 +70,9 @@ namespace DSM {
 				if (it == frameReource->m_Resources.end() || obj->GetModel() == nullptr) continue;
 
 				auto resource = it->second;
-
+				
 				BYTE* mappedData = static_cast<BYTE*>(resource.m_MappedBaseAddress);
+
 				decltype(auto) objCB = objFunc(*obj, static_cast<RenderLayer>(i));
 				auto objByteSize = D3DUtil::CalcCBByteSize(sizeof(objCB));
 				memcpy(mappedData, &objCB, objByteSize);

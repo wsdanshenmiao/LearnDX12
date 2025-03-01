@@ -24,7 +24,7 @@ namespace DSM {
 		ThrowIfFailed(m_CommandList->Reset(m_DirectCmdListAlloc.Get(), nullptr));
 
 		// 注意初始化顺序
-		LightManager::Create(m_D3D12Device.Get(), FrameCount);
+		LightManager::Create(FrameCount);
 		ObjectManager::Create();
 		ModelManager::Create(m_D3D12Device.Get());
 		TextureManager::Create(m_D3D12Device.Get(), m_CommandList.Get());
@@ -71,7 +71,7 @@ namespace DSM {
 		dirLight.m_Dir = imgui.m_LightDir;
 		dirLight.m_Color = imgui.m_LightColor;
 		lightManager.SetDirLight(0, dirLight);
-		lightManager.UpdateLight();
+		lightManager.UpdateLight(m_CurrFrameResource);
 		UpdateObjCB(timer);
 	}
 
@@ -79,6 +79,7 @@ namespace DSM {
 	{
 		auto& imgui = ImguiManager::GetInstance();
 		auto& texManager = TextureManager::GetInstance();
+		auto& lightManager = LightManager::GetInstance();
 
 		auto& cmdListAlloc = m_CurrFrameResource->m_CmdListAlloc;
 		ThrowIfFailed(cmdListAlloc->Reset());
@@ -108,21 +109,22 @@ namespace DSM {
 		m_CommandList->ClearDepthStencilView(dsv, D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 1, 0, 0, nullptr);
 
 		m_CommandList->OMSetRenderTargets(1, &currBackBV, true, &dsv);
-
-
+		
 
 
 		ID3D12DescriptorHeap* texHeap[] = { texManager.GetDescriptorHeap() };
 		m_CommandList->SetDescriptorHeaps(_countof(texHeap), texHeap);
-
 		m_CommandList->SetGraphicsRootSignature(m_RootSignature.Get());
 
 		auto& constBuffers = m_CurrFrameResource->m_Resources;
-		auto& [passName, passConstant] = *constBuffers.find(typeid(PassConstants).name());
-		m_CommandList->SetGraphicsRootConstantBufferView(1, passConstant.m_GPUVirtualAddress);
-
-		auto lightAddress = LightManager::GetInstance().GetGPUVirtualAddress();
-		m_CommandList->SetGraphicsRootConstantBufferView(2, lightAddress);
+		if (auto it =  constBuffers.find(typeid(PassConstants).name()); it != constBuffers.end()) {
+			auto& passConstants = it->second;
+			m_CommandList->SetGraphicsRootConstantBufferView(1, passConstants.m_GPUVirtualAddress);
+		}
+		if (auto it = constBuffers.find(lightManager.GetLightBufferName()); it != constBuffers.end()) {
+			auto& lightConstants = it->second;
+			m_CommandList->SetGraphicsRootConstantBufferView(2, lightConstants.m_GPUVirtualAddress);
+		}
 
 		// 绘制不透明物体
 		RenderScene(RenderLayer::Opaque);
@@ -138,8 +140,7 @@ namespace DSM {
 		m_CommandList->SetPipelineState(m_PSOs["Transparent"].Get());
 		RenderScene(RenderLayer::Transparent);
 
-
-
+		
 
 		ImguiManager::GetInstance().RenderImGui(m_CommandList.Get());
 
@@ -333,14 +334,20 @@ namespace DSM {
 	void ResourceAllocatorAPP::CreateFrameResource()
 	{
 		auto& objManager = ObjectManager::GetInstance();
+		auto& lightManager = LightManager::GetInstance();
 
 		for (auto& resource : m_FrameResources) {
 			resource = std::make_unique<FrameResource>(m_D3D12Device.Get());
-			objManager.CreateObjectsResource(resource.get(), sizeof(ObjectConstants), sizeof(MaterialConstants));
 			resource->AddConstantBuffer(
 				sizeof(PassConstants),
 				1,
 				typeid(PassConstants).name());
+			resource->AddConstantBuffer(
+				lightManager.GetLightByteSize(),
+				1,
+				lightManager.GetLightBufferName());
+			objManager.CreateObjectsResource(resource.get(), sizeof(ObjectConstants), sizeof(MaterialConstants));
+
 		}
 	}
 

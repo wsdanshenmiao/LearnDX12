@@ -19,6 +19,7 @@ namespace DSM{
     void D3D12Resource::Unmap()
     {
         m_Resource->Unmap(0, nullptr);
+        m_MappedBaseAddress = nullptr;
     }
     
 }

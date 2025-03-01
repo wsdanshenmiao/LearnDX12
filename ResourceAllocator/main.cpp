@@ -14,7 +14,7 @@ int WinMain(
 #endif
 
 	try {
-		ResourceAllocatorAPP app(hInstance, L"Blend", 1024, 768);
+		ResourceAllocatorAPP app(hInstance, L"ResourceAllocator", 1024, 768);
 		app.OnInit();
 		return app.Run();
 	}
