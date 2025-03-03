@@ -263,18 +263,6 @@ namespace DSM {
 		auto& modelManager = ModelManager::GetInstance();
 		auto& objManager = ObjectManager::GetInstance();
 
-		// 创建模型及物体
-		const Model* elenaModel = modelManager.LoadModelFromeFile(
-			"Elena",
-			"Models\\Elena.obj",
-			m_CommandList.Get());
-		auto elena = std::make_shared<Object>(elenaModel->GetName(), elenaModel);
-		elena->GetTransform().SetScale({ 2,2,2 });
-		objManager.AddObject(elena, RenderLayer::Opaque);
-		auto elenaMirror = std::make_shared<Object>(elenaModel->GetName() + "Mirror", elenaModel);
-		elenaMirror->GetTransform().SetScale({ 2,2,2 });
-		objManager.AddObject(elenaMirror, RenderLayer::Reflection);
-
 		const Model* sponzaModel = modelManager.LoadModelFromeFile(
 			"Sponza",
 			"Models\\Sponza\\Sponza.gltf",
@@ -283,6 +271,15 @@ namespace DSM {
 		sponza->GetTransform().SetScale({ 0.2,0.2,0.2 });
 		sponza->GetTransform().SetRotation(0, MathHelper::PI / 2, 0);
 		objManager.AddObject(sponza, RenderLayer::Opaque);
+		
+		// 创建模型及物体
+		const Model* elenaModel = modelManager.LoadModelFromeFile(
+			"Elena",
+			"Models\\Elena.obj",
+			m_CommandList.Get());
+		auto elena = std::make_shared<Object>(elenaModel->GetName(), elenaModel);
+		elena->GetTransform().SetScale({ 2,2,2 });
+		objManager.AddObject(elena, RenderLayer::Opaque);
 
 
 		// 提前为所有模型生成网格数据
@@ -347,7 +344,6 @@ namespace DSM {
 				1,
 				lightManager.GetLightBufferName());
 			objManager.CreateObjectsResource(resource.get(), sizeof(ObjectConstants), sizeof(MaterialConstants));
-
 		}
 	}
 

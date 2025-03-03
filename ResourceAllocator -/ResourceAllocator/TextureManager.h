@@ -4,6 +4,7 @@
 
 #include "Singleton.h"
 #include "Texture.h"
+#include "D3D12Allocatioin.h"
 
 namespace DSM {
 	class TextureManager : public Singleton<TextureManager>
@@ -40,6 +41,10 @@ namespace DSM {
 	protected:
 		Microsoft::WRL::ComPtr<ID3D12Device> m_Device;
 		Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> m_TexDescriptorHeap;
+		
+		std::unique_ptr<D3D12UploadBufferAllocator> m_UploadBufferAllocator;
+		std::unique_ptr<D3D12TextureAllocator> m_TextureAllocator;
+		
 		std::unordered_map<std::string, Texture> m_Textures;
 	};
 }

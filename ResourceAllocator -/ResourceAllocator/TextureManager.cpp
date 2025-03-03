@@ -18,7 +18,11 @@ namespace DSM {
 		if (m_Textures.contains(fileName)) return nullptr;
 
 		Texture tex{};
-		bool sucess = Texture::LoadTextureFromFile(tex, name, fileName, m_Device.Get(), cmdList);
+		bool sucess = Texture::LoadTextureFromFile(
+			tex, name, fileName,
+			m_Device.Get(), cmdList,
+			m_TextureAllocator.get(),
+			m_UploadBufferAllocator.get());
 		if (sucess) {
 			tex.SetDescriptorIndex(m_Textures.size());
 			m_Textures[name] = std::move(tex);
@@ -34,7 +38,11 @@ namespace DSM {
 		if (m_Textures.contains(name)) return nullptr;
 
 		Texture tex{};
-		bool sucess = Texture::LoadTextureFromMemory(tex, name, data, dataSize, m_Device.Get(), cmdList);
+		bool sucess = Texture::LoadTextureFromMemory(
+			tex, name, data, dataSize,
+			m_Device.Get(), cmdList,
+			m_TextureAllocator.get(),
+			m_UploadBufferAllocator.get());
 		if (sucess) {
 			tex.SetDescriptorIndex(m_Textures.size());
 			m_Textures[name] = std::move(tex);
@@ -99,26 +107,27 @@ namespace DSM {
 		SRVDesc.Texture2D.MostDetailedMip = 0;
 		SRVDesc.Texture2D.ResourceMinLODClamp = 0;
 		for (auto& [name, tex] : m_Textures) {
-			SRVDesc.Format = tex.GetTexture()->GetDesc().Format;
-			SRVDesc.Texture2D.MipLevels = tex.GetTexture()->GetDesc().MipLevels;
+			auto& texResource = tex.GetTexture().m_UnderlyingResource->m_Resource;
+			SRVDesc.Format = texResource->GetDesc().Format;
+			SRVDesc.Texture2D.MipLevels = texResource->GetDesc().MipLevels;
 
 			auto handle=m_TexDescriptorHeap->GetCPUDescriptorHandleForHeapStart();
 			handle.ptr += tex.GetDescriptorIndex() * descriptorSize;
 			
-			m_Device->CreateShaderResourceView(tex.GetTexture(),&SRVDesc,handle);
+			m_Device->CreateShaderResourceView(texResource.Get() ,&SRVDesc,handle);
 		}
 	}
 
 	TextureManager::TextureManager(ID3D12Device* device, ID3D12GraphicsCommandList* cmdList)
 		:m_Device(device) {
+		m_TextureAllocator = std::make_unique<D3D12TextureAllocator>(m_Device.Get());
+		m_UploadBufferAllocator = std::make_unique<D3D12UploadBufferAllocator>(m_Device.Get());
+		
 		// 创建一个空白纹理，用来处理模型没有纹理的情况
-		std::uint32_t white = (std::uint32_t) -1;
-		
-		Microsoft::WRL::ComPtr<ID3D12Resource> resource = nullptr;
-		Microsoft::WRL::ComPtr<ID3D12Resource> uploader = nullptr;
-		
-		D3D12_HEAP_PROPERTIES texHeapDesc{};
-		texHeapDesc.Type = D3D12_HEAP_TYPE_DEFAULT;
+		std::uint32_t white = (std::uint32_t) - 1;
+
+		D3D12ResourceLocation texResource{};
+		D3D12ResourceLocation uploadHeap{};
 
 		D3D12_RESOURCE_DESC texDesc{};
 		texDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
@@ -128,16 +137,10 @@ namespace DSM {
 		texDesc.DepthOrArraySize = 1;
 		texDesc.MipLevels = 1;
 		texDesc.SampleDesc = {1,0};
-
-		ThrowIfFailed(m_Device->CreateCommittedResource(
-			&texHeapDesc,
-			D3D12_HEAP_FLAG_NONE,
-			&texDesc,
-			D3D12_RESOURCE_STATE_COPY_DEST,
-			nullptr,
-			IID_PPV_ARGS(resource.GetAddressOf())));
-
-		auto desc = resource->GetDesc();
+		
+		m_TextureAllocator->AllocateTexture(texDesc, D3D12_RESOURCE_STATE_COPY_DEST, texResource);
+		
+		auto desc = texResource.m_UnderlyingResource->m_Resource->GetDesc();
 		D3D12_PLACED_SUBRESOURCE_FOOTPRINT footprint{};
 		UINT   textureRowNum = 0u;
 		UINT64 textureRowSizes = 0u;
@@ -150,45 +153,31 @@ namespace DSM {
 			&textureRowSizes,
 			& totalSize);
 
-		auto uploadHeapDesc = texHeapDesc;
-		uploadHeapDesc.Type = D3D12_HEAP_TYPE_UPLOAD;
-		auto uploadDesc = texDesc;
-		uploadDesc.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
-		uploadDesc.Format = DXGI_FORMAT_UNKNOWN;
-		uploadDesc.Width = totalSize;
-		uploadDesc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
-		ThrowIfFailed(m_Device->CreateCommittedResource(
-			&uploadHeapDesc,
-			D3D12_HEAP_FLAG_NONE,
-			&uploadDesc,
-			D3D12_RESOURCE_STATE_GENERIC_READ,
-			nullptr,
-			IID_PPV_ARGS(uploader.GetAddressOf())));
+		m_UploadBufferAllocator->AllocateUploadBuffer(totalSize, 0, uploadHeap);
 
-		BYTE* mappedData = nullptr;
-		uploader->Map(0, nullptr, reinterpret_cast<void**>(&mappedData));
+		BYTE* mappedData = static_cast<BYTE*>(uploadHeap.m_MappedBaseAddress);
 		memcpy(mappedData, &white, sizeof(white));
-		uploader->Unmap(0, nullptr);
 		mappedData = nullptr;
 
 		
 		//向命令队列发出从上传堆复制纹理数据到默认堆的命令
 		D3D12_TEXTURE_COPY_LOCATION stDst = {};
 		stDst.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
-		stDst.pResource = resource.Get();
+		stDst.pResource = texResource.m_UnderlyingResource->m_Resource.Get();
 		stDst.SubresourceIndex = 0;
 
 		D3D12_TEXTURE_COPY_LOCATION stSrc = {};
 		stSrc.Type = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT;
-		stSrc.pResource = uploader.Get();
+		stSrc.pResource = uploadHeap.m_UnderlyingResource->m_Resource.Get();
 		stSrc.PlacedFootprint = footprint;
+		stDst.PlacedFootprint.Offset += uploadHeap.m_OffsetFromBaseOfResource;
 		cmdList->CopyTextureRegion(&stDst, 0, 0, 0, &stSrc, nullptr);
 
 		D3D12_RESOURCE_BARRIER barrier{};
 		barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
 		barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
 		barrier.Transition = {
-			resource.Get(),
+			texResource.m_UnderlyingResource->m_Resource.Get(),
 			D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES,
 			D3D12_RESOURCE_STATE_COPY_DEST,
 			D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE
@@ -196,7 +185,8 @@ namespace DSM {
 		cmdList->ResourceBarrier(1, &barrier);
 
 		Texture whiteTexture{};
-		whiteTexture.SetTexture(resource.Get());
+		whiteTexture.SetTexture(texResource);
+		whiteTexture.SetUploadHeap(uploadHeap);
 		whiteTexture.SetName("DefaultTexture");
 		whiteTexture.SetDescriptorIndex(m_Textures.size());
 		m_Textures[whiteTexture.GetName()] = whiteTexture;

@@ -251,10 +251,10 @@ namespace DSM {
 		std::unique_ptr<uint8_t[]> ddsData;
 		std::vector<D3D12_SUBRESOURCE_DATA> subresources;
 		ThrowIfFailed(LoadDDSTextureFromFile(
-			m_D3D12Device.Get(),
-			woodTex->m_Filename.c_str(),
-			woodTex->m_Texture.GetAddressOf(),
-			ddsData, subresources));
+				m_D3D12Device.Get(),
+				woodTex->m_Filename.c_str(),
+				woodTex->m_Texture.GetAddressOf(),
+				ddsData, subresources));
 
 		// 获取上传堆的大小
 		UINT64 uploadBufferSize;

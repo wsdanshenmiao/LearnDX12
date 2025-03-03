@@ -118,6 +118,21 @@ namespace DSM {
 		std::unique_ptr<D3D12MultiBuddyAllocator> m_UploadBufferAllocator;
 		Microsoft::WRL::ComPtr<ID3D12Device> m_Device = nullptr;
 	};
+
+	class D3D12TextureAllocator
+	{
+	public:
+		D3D12TextureAllocator(ID3D12Device* device);
+		void AllocateTexture(
+			const D3D12_RESOURCE_DESC& textureDesc,
+			const D3D12_RESOURCE_STATES& textureState,
+			D3D12ResourceLocation& resourceLocation);
+		void ClearUpAllocations();
+
+	private:
+		std::unique_ptr<D3D12MultiBuddyAllocator> m_TextureAllocator;
+		Microsoft::WRL::ComPtr<ID3D12Device> m_Device = nullptr;
+	};
 }
 
 

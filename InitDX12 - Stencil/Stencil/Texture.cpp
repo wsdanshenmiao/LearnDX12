@@ -76,10 +76,10 @@ namespace DSM {
 		auto wstr = AnsiToWString(fileName);
 		// 若使用dds加载失败则使用stbimage
 		if (FAILED(LoadDDSTextureFromFile(
-			device,
-			wstr.c_str(),
-			texture.m_Texture.GetAddressOf(),
-			ddsData, subresources))) {
+				device,
+				wstr.c_str(),
+				texture.m_Texture.GetAddressOf(),
+				ddsData, subresources))) {
 			int height, width, comp;
 			imgData = stbi_load(fileName.c_str(), &width, &height, &comp, STBI_rgb_alpha);
 			if (imgData == nullptr)return false;
@@ -145,11 +145,11 @@ namespace DSM {
 		stbi_uc* imgData = nullptr;
 		// 若使用dds加载失败则使用stbimage
 		if (FAILED(LoadDDSTextureFromMemory(
-			device,
-			reinterpret_cast<std::uint8_t*>(data),
-			dataSize,
-			texture.m_Texture.GetAddressOf(),
-			subresources))) {
+				device,
+				reinterpret_cast<std::uint8_t*>(data),
+				dataSize,
+				texture.m_Texture.GetAddressOf(),
+				subresources))) {
 			int height, width, comp;
 			imgData = stbi_load_from_memory(reinterpret_cast<stbi_uc*>(data), (int)dataSize, &width, &height, &comp, STBI_rgb_alpha);
 			if (imgData == nullptr)return false;

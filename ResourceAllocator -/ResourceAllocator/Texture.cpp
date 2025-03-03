@@ -1,5 +1,7 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include "Texture.h"
+
+#include "D3D12Allocatioin.h"
 #include "D3DUtil.h"
 #include "DDSTextureLoader12.h"
 #include "stb_image.h"
@@ -15,9 +17,15 @@ namespace DSM {
 		const std::string& name,
 		const std::string& fileName,
 		ID3D12Device* device,
-		ID3D12GraphicsCommandList* cmdList)
+		ID3D12GraphicsCommandList* cmdList,
+		D3D12TextureAllocator* texAllocator,
+		D3D12UploadBufferAllocator* uploadAllocator)
 		:m_Name(name) {
-		LoadTextureFromFile(*this, fileName, device, cmdList);
+		assert(device != nullptr);
+		assert(cmdList != nullptr);
+		assert(texAllocator != nullptr);
+		assert(uploadAllocator != nullptr);
+		LoadTextureFromFile(*this, fileName, device, cmdList, texAllocator, uploadAllocator);
 	}
 
 	const std::string& Texture::GetName() const noexcept
@@ -30,14 +38,14 @@ namespace DSM {
 		return m_DescriptorIndex;
 	}
 
-	ID3D12Resource* Texture::GetTexture()
+	D3D12ResourceLocation& Texture::GetTexture()
 	{
-		return m_Texture.Get();
+		return m_Texture;
 	}
 
-	const ID3D12Resource* Texture::GetTexture() const
+	const D3D12ResourceLocation& Texture::GetTexture() const
 	{
-		return m_Texture.Get();
+		return m_Texture;
 	}
 
 	void Texture::SetName(const std::string& name)
@@ -45,9 +53,14 @@ namespace DSM {
 		m_Name = name;
 	}
 
-	void Texture::SetTexture(ID3D12Resource* texture)
+	void Texture::SetTexture(const D3D12ResourceLocation& texture)
 	{
 		m_Texture = texture;
+	}
+
+	void Texture::SetUploadHeap(const D3D12ResourceLocation& uploadHeap)
+	{
+		m_UploadHeap = uploadHeap;
 	}
 
 	void Texture::SetDescriptorIndex(UINT index) noexcept
@@ -57,57 +70,56 @@ namespace DSM {
 
 	void Texture::DisposeUploader() noexcept
 	{
-		m_UploadHeap = nullptr;
+		m_UploadHeap.m_Allocator->ClearUpAllocations();
 	}
 
 	bool Texture::LoadTextureFromFile(
 		Texture& texture,
 		const std::string& fileName,
 		ID3D12Device* device,
-		ID3D12GraphicsCommandList* cmdList)
+		ID3D12GraphicsCommandList* cmdList,
+		D3D12TextureAllocator* texAllocator,
+		D3D12UploadBufferAllocator* uploadAllocator)
 	{
-		texture.m_Texture = nullptr;
-		texture.m_UploadHeap = nullptr;
+		assert(device != nullptr);
+		assert(cmdList != nullptr);
+		assert(texAllocator != nullptr);
+		assert(uploadAllocator != nullptr);
+		
 		texture.SetName(fileName);
 
 		std::unique_ptr<uint8_t[]> ddsData;
 		std::vector<D3D12_SUBRESOURCE_DATA> subresources;
 		stbi_uc* imgData = nullptr;
 		auto wstr = AnsiToWString(fileName);
+		int height, width, comp;
+
+		D3D12_RESOURCE_DESC textureDesc{};
 		// 若使用dds加载失败则使用stbimage
 		if (FAILED(LoadDDSTextureFromFile(
-			device,
-			wstr.c_str(),
-			texture.m_Texture.GetAddressOf(),
-			ddsData, subresources))) {
-			int height, width, comp;
+				device,
+				wstr.c_str(),
+				textureDesc,
+				ddsData, subresources))) {
 			imgData = stbi_load(fileName.c_str(), &width, &height, &comp, STBI_rgb_alpha);
 			if (imgData == nullptr)return false;
 
 			subresources.clear();
 			subresources.emplace_back(imgData,width * sizeof(uint32_t),0);
-
-			D3D12_HEAP_PROPERTIES texHeapDesc{};
-			texHeapDesc.Type = D3D12_HEAP_TYPE_DEFAULT;
-			D3D12_RESOURCE_DESC texResDesc{};
-			texResDesc.Alignment = 0;
-			texResDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
-			texResDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-			texResDesc.Width = width;
-			texResDesc.Height = height;
-			texResDesc.DepthOrArraySize = 1;
-			texResDesc.SampleDesc = { 1,0 };
-			texResDesc.MipLevels = 1;
-			ThrowIfFailed(device->CreateCommittedResource(
-				&texHeapDesc,
-				D3D12_HEAP_FLAG_NONE,
-				&texResDesc,
-				D3D12_RESOURCE_STATE_COPY_DEST,
-				nullptr,
-				IID_PPV_ARGS(texture.m_Texture.GetAddressOf())));
+			
+			textureDesc.Alignment = 0;
+			textureDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+			textureDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+			textureDesc.Width = width;
+			textureDesc.Height = height;
+			textureDesc.DepthOrArraySize = 1;
+			textureDesc.SampleDesc = { 1,0 };
+			textureDesc.MipLevels = 1;
 		}
 
-		LoadTexture(texture, subresources, device, cmdList);
+		texAllocator->AllocateTexture(textureDesc, D3D12_RESOURCE_STATE_COPY_DEST, texture.m_Texture);
+		
+		LoadTexture(texture, subresources, device, cmdList, uploadAllocator);
 
 		if (imgData != nullptr) {
 			stbi_image_free(imgData);
@@ -121,9 +133,11 @@ namespace DSM {
 		const std::string& name,
 		const std::string& fileName,
 		ID3D12Device* device,
-		ID3D12GraphicsCommandList* cmdList)
+		ID3D12GraphicsCommandList* cmdList,
+		D3D12TextureAllocator* texAllocator,
+		D3D12UploadBufferAllocator* uploadAllocator)
 	{
-		bool success = LoadTextureFromFile(texture, fileName, device, cmdList);
+		bool success = LoadTextureFromFile(texture, fileName, device, cmdList, texAllocator, uploadAllocator);
 		texture.SetName(name);
 		return success;
 	}
@@ -134,49 +148,49 @@ namespace DSM {
 		void* data,
 		size_t dataSize,
 		ID3D12Device* device,
-		ID3D12GraphicsCommandList* cmdList)
+		ID3D12GraphicsCommandList* cmdList,
+		D3D12TextureAllocator* texAllocator,
+		D3D12UploadBufferAllocator* uploadAllocator)
 	{
-		texture.m_Texture = nullptr;
-		texture.m_UploadHeap = nullptr;
+		assert(device != nullptr);
+		assert(cmdList != nullptr);
+		assert(texAllocator != nullptr);
+		assert(uploadAllocator != nullptr);
+		
 		texture.SetName(name);
 
 		std::unique_ptr<uint8_t[]> ddsData;
 		std::vector<D3D12_SUBRESOURCE_DATA> subresources;
 		stbi_uc* imgData = nullptr;
+
+		D3D12_RESOURCE_DESC textureDesc{};
 		// 若使用dds加载失败则使用stbimage
 		if (FAILED(LoadDDSTextureFromMemory(
-			device,
-			reinterpret_cast<std::uint8_t*>(data),
-			dataSize,
-			texture.m_Texture.GetAddressOf(),
-			subresources))) {
+				device,
+				reinterpret_cast<std::uint8_t*>(data),
+				dataSize,
+				textureDesc,
+				subresources))) {
 			int height, width, comp;
 			imgData = stbi_load_from_memory(reinterpret_cast<stbi_uc*>(data), (int)dataSize, &width, &height, &comp, STBI_rgb_alpha);
 			if (imgData == nullptr)return false;
 
 			subresources.clear();
 			subresources.emplace_back(imgData, width * sizeof(std::uint32_t), 0);
-			D3D12_HEAP_PROPERTIES texHeapDesc{};
-			texHeapDesc.Type = D3D12_HEAP_TYPE_DEFAULT;
-			D3D12_RESOURCE_DESC texResDesc{};
-			texResDesc.Alignment = 0;
-			texResDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
-			texResDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-			texResDesc.Width = width;
-			texResDesc.Height = height;
-			texResDesc.DepthOrArraySize = 1;
-			texResDesc.SampleDesc = { 1,0 };
-			texResDesc.MipLevels = 1;
-			ThrowIfFailed(device->CreateCommittedResource(
-				&texHeapDesc,
-				D3D12_HEAP_FLAG_NONE,
-				&texResDesc,
-				D3D12_RESOURCE_STATE_COPY_DEST,
-				nullptr,
-				IID_PPV_ARGS(texture.m_Texture.GetAddressOf())));
+			
+			textureDesc.Alignment = 0;
+			textureDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+			textureDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+			textureDesc.Width = width;
+			textureDesc.Height = height;
+			textureDesc.DepthOrArraySize = 1;
+			textureDesc.SampleDesc = { 1,0 };
+			textureDesc.MipLevels = 1;
 		}
 
-		LoadTexture(texture, subresources, device, cmdList);
+		texAllocator->AllocateTexture(textureDesc, D3D12_RESOURCE_STATE_COPY_DEST, texture.m_Texture);
+		
+		LoadTexture(texture, subresources, device, cmdList, uploadAllocator);
 
 		if (imgData != nullptr) {
 			stbi_image_free(imgData);
@@ -189,14 +203,15 @@ namespace DSM {
 		Texture& texture,
 		const std::vector<D3D12_SUBRESOURCE_DATA>& subresources,
 		ID3D12Device* device,
-		ID3D12GraphicsCommandList* cmdList)
+		ID3D12GraphicsCommandList* cmdList,
+		D3D12UploadBufferAllocator* uploadAllocator)
 	{
 		// 获取拷贝信息
 		std::vector<D3D12_PLACED_SUBRESOURCE_FOOTPRINT> footprint(subresources.size());	// 子资源的宽高偏移等信息
 		std::vector<UINT> numRows(subresources.size());	// 子资源的行数
 		std::vector<UINT64> rowByteSize(subresources.size());	// 子资源每一行的字节大小
 		UINT64 uploadBufferSize;	// 整个纹理数据的大小
-		auto texDesc = texture.m_Texture->GetDesc();
+		auto texDesc = texture.m_Texture.m_UnderlyingResource->m_Resource->GetDesc();
 		device->GetCopyableFootprints(
 			&texDesc, 0,
 			subresources.size(), 0,
@@ -204,30 +219,9 @@ namespace DSM {
 			rowByteSize.data(), &uploadBufferSize);
 
 		// 创建GPU上传堆
-		D3D12_HEAP_PROPERTIES uploadHeapProps{};
-		uploadHeapProps.Type = D3D12_HEAP_TYPE_UPLOAD;
+		uploadAllocator->AllocateUploadBuffer(uploadBufferSize, 0, texture.m_UploadHeap);
 
-		D3D12_RESOURCE_DESC uploadResDesc{};
-		uploadResDesc.Alignment = 0;
-		uploadResDesc.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
-		uploadResDesc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
-		uploadResDesc.Width = uploadBufferSize;
-		uploadResDesc.Height = 1;
-		uploadResDesc.DepthOrArraySize = 1;
-		uploadResDesc.SampleDesc = { 1,0 };
-		uploadResDesc.MipLevels = 1;
-
-		ThrowIfFailed(device->CreateCommittedResource(
-			&uploadHeapProps,
-			D3D12_HEAP_FLAG_NONE,
-			&uploadResDesc,
-			D3D12_RESOURCE_STATE_GENERIC_READ,
-			nullptr,
-			IID_PPV_ARGS(texture.m_UploadHeap.GetAddressOf())));
-
-
-		BYTE* mappedData = nullptr;
-		ThrowIfFailed(texture.m_UploadHeap->Map(0, nullptr, reinterpret_cast<void**>(&mappedData)));
+		BYTE* mappedData = static_cast<BYTE*>(texture.m_UploadHeap.m_MappedBaseAddress);
 		// 每一个子资源
 		for (std::size_t i = 0; i < subresources.size(); i++) {
 			auto destData = mappedData + footprint[i].Offset;	// 每个子资源的偏移
@@ -243,25 +237,27 @@ namespace DSM {
 				}
 			}
 		}
-		texture.m_UploadHeap->Unmap(0, nullptr);
 
 		// 拷贝所有子资源
 		for (std::size_t i = 0; i < subresources.size(); i++) {
 			D3D12_TEXTURE_COPY_LOCATION dest{};
 			dest.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
 			dest.SubresourceIndex = i;
-			dest.pResource = texture.m_Texture.Get();
+			dest.pResource = texture.m_Texture.m_BlockData.m_PlacedResource->m_Resource.Get();
+
+			auto baseOffset = texture.m_UploadHeap.m_OffsetFromBaseOfResource;
 			D3D12_TEXTURE_COPY_LOCATION src{};
 			src.Type = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT;
 			src.PlacedFootprint = footprint[i];
-			src.pResource = texture.m_UploadHeap.Get();
+			src.PlacedFootprint.Offset += baseOffset;
+			src.pResource = texture.m_UploadHeap.m_UnderlyingResource->m_Resource.Get();
 			cmdList->CopyTextureRegion(&dest,0,0,0,&src,nullptr);
 		}
 		
 		D3D12_RESOURCE_BARRIER barrier{};
 		barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
 		barrier.Transition = {
-			texture.m_Texture.Get(),
+			texture.m_Texture.m_BlockData.m_PlacedResource->m_Resource.Get(),
 			D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES,
 			D3D12_RESOURCE_STATE_COPY_DEST,
 			D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE
