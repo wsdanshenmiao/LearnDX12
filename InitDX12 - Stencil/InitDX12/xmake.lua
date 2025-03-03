@@ -2,6 +2,7 @@ targetName = "InitDX12"
 target(targetName)
     -- 设置目标类型
     set_kind("binary")
+    set_group("InitDX12 - Stencil")
     -- 设置输出目录
     set_targetdir(path.join(binDir, targetName))
 

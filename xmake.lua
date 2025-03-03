@@ -18,13 +18,6 @@ set_toolchains("msvc")
 set_encodings("utf-8")
 
 
-if is_mode("debug") then 
-    binDir = path.join(os.projectdir(), "Bin/Debug")
-else 
-    binDir = path.join(os.projectdir(), "Bin/Release")
-end 
-
-
 function add_dxsdk_options() 
     if has_config("WIN7_SYSTEM_SUPPORT") then
         add_defines("_WIN32_WINNT=0x601")

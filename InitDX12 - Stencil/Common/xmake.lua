@@ -2,7 +2,7 @@ targetName = "Common"
 target(targetName)
     -- 设置目标类型
     set_kind("static")
-    set_group(targetName)
+    set_group("InitDX12 - Stencil")
     set_targetdir(path.join(binDir, targetName))
 
     add_deps("Imgui")

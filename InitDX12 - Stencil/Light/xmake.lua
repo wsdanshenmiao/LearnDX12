@@ -1,6 +1,7 @@
 targetName = "Light"
 target(targetName)
     set_kind("binary")
+    set_group("InitDX12 - Stencil")
     set_targetdir(path.join(binDir, targetName))
 
     add_deps("Common")

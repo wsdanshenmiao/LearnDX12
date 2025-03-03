@@ -1,6 +1,7 @@
 targetName = "ResourceAllocator"
 target(targetName)
     set_kind("binary")
+    set_group("ResourceAllocator -")
     set_targetdir(path.join(binDir, targetName))
 
     add_deps("Common")

@@ -2,7 +2,7 @@ targetName = "LandAndWaveWithTexture"
 target(targetName)
     set_kind("binary")
     set_targetdir(path.join(binDir, targetName))
-    
+    set_group("InitDX12 - Stencil")
     add_deps("Common")
     
     add_rules("Imguiini")
