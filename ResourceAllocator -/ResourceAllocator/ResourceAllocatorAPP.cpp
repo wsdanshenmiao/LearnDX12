@@ -109,7 +109,7 @@ namespace DSM {
 		m_CommandList->ClearDepthStencilView(dsv, D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 1, 0, 0, nullptr);
 
 		m_CommandList->OMSetRenderTargets(1, &currBackBV, true, &dsv);
-		
+
 
 
 		ID3D12DescriptorHeap* texHeap[] = { texManager.GetDescriptorHeap() };
@@ -117,7 +117,7 @@ namespace DSM {
 		m_CommandList->SetGraphicsRootSignature(m_RootSignature.Get());
 
 		auto& constBuffers = m_CurrFrameResource->m_Resources;
-		if (auto it =  constBuffers.find(typeid(PassConstants).name()); it != constBuffers.end()) {
+		if (auto it = constBuffers.find(typeid(PassConstants).name()); it != constBuffers.end()) {
 			auto& passConstants = it->second;
 			m_CommandList->SetGraphicsRootConstantBufferView(1, passConstants.m_GPUVirtualAddress);
 		}
@@ -140,7 +140,7 @@ namespace DSM {
 		m_CommandList->SetPipelineState(m_PSOs["Transparent"].Get());
 		RenderScene(RenderLayer::Transparent);
 
-		
+
 
 		ImguiManager::GetInstance().RenderImGui(m_CommandList.Get());
 
@@ -271,7 +271,7 @@ namespace DSM {
 		sponza->GetTransform().SetScale({ 0.2,0.2,0.2 });
 		sponza->GetTransform().SetRotation(0, MathHelper::PI / 2, 0);
 		objManager.AddObject(sponza, RenderLayer::Opaque);
-		
+
 		// 创建模型及物体
 		const Model* elenaModel = modelManager.LoadModelFromeFile(
 			"Elena",

@@ -5,3 +5,4 @@ else
 end 
 includes("Common")
 includes("ResourceAllocator")
+includes("DescriptorHeap")
