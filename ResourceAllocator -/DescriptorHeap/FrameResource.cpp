@@ -1,4 +1,5 @@
 #include "FrameResource.h"
+#include "D3D12DescriptorHeap.h"
 
 namespace DSM {
 	FrameResource::FrameResource(ID3D12Device* device)
@@ -26,6 +27,15 @@ namespace DSM {
 		AddUploadBuffer(byteSize, elementSize, bufferName, false);
 	}
 
+	void FrameResource::ClearUp(std::uint64_t fenceValue)
+	{
+		// 若当前的围栏值大于该帧缓冲区的围栏值，则可释放帧资源内部数据
+		if (fenceValue >= m_Fence) {
+			m_DefaultBufferAllocator->ClearUpAllocations();
+			m_UploadBufferAllocator->ClearUpAllocations();
+		}
+	}
+
 	void FrameResource::AddUploadBuffer(
 		UINT elementByteSize,
 		UINT elementSize,
@@ -35,9 +45,9 @@ namespace DSM {
 		auto byteSize = elementByteSize * elementSize;
 		auto alignment = isConstant ? 256 : 0;
 
-		D3D12ResourceLocation resourceLocation;
-		m_UploadBufferAllocator->AllocateUploadBuffer(byteSize, alignment, resourceLocation);
+		auto resourceLocation = std::make_shared<D3D12ResourceLocation>();
+		m_UploadBufferAllocator->AllocateUploadBuffer(byteSize, alignment, *resourceLocation);
 
-		m_Resources[bufferName] = std::move(resourceLocation);
+		m_Resources[bufferName] = resourceLocation;
 	}
 }

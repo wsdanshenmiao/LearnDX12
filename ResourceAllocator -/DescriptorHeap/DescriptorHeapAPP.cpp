@@ -4,6 +4,7 @@
 #include "ModelManager.h"
 #include "ConstantData.h"
 #include "LightManager.h"
+#include "Shader.h"
 #include "TextureManager.h"
 
 using namespace DirectX;
@@ -119,11 +120,11 @@ namespace DSM {
 		auto& constBuffers = m_CurrFrameResource->m_Resources;
 		if (auto it = constBuffers.find(typeid(PassConstants).name()); it != constBuffers.end()) {
 			auto& passConstants = it->second;
-			m_CommandList->SetGraphicsRootConstantBufferView(1, passConstants.m_GPUVirtualAddress);
+			m_CommandList->SetGraphicsRootConstantBufferView(1, passConstants->m_GPUVirtualAddress);
 		}
 		if (auto it = constBuffers.find(lightManager.GetLightBufferName()); it != constBuffers.end()) {
 			auto& lightConstants = it->second;
-			m_CommandList->SetGraphicsRootConstantBufferView(2, lightConstants.m_GPUVirtualAddress);
+			m_CommandList->SetGraphicsRootConstantBufferView(2, lightConstants->m_GPUVirtualAddress);
 		}
 
 		// 绘制不透明物体
@@ -167,6 +168,10 @@ namespace DSM {
 		m_CurrFrameResource->m_Fence = ++m_CurrentFence;
 		m_CurrBackBuffer = (m_CurrBackBuffer + 1) % SwapChainBufferCount;
 		ThrowIfFailed(m_CommandQueue->Signal(m_D3D12Fence.Get(), m_CurrentFence));
+
+		for (auto& frameResource : m_FrameResources) {
+			frameResource->ClearUp(m_CurrentFence);
+		}
 	}
 
 	void DescriptorHeapAPP::WaitForGPU()
@@ -197,7 +202,7 @@ namespace DSM {
 				m_CommandList->IASetVertexBuffers(0, 1, &vertexBV);
 				m_CommandList->IASetIndexBuffer(&indexBV);
 
-				auto objHandle = m_CurrFrameResource->m_Resources[name].m_GPUVirtualAddress;
+				auto objHandle = m_CurrFrameResource->m_Resources[name]->m_GPUVirtualAddress;
 				m_CommandList->SetGraphicsRootConstantBufferView(0, objHandle);
 
 				for (const auto& [name, drawItem] : meshData->m_DrawArgs) {
@@ -245,6 +250,22 @@ namespace DSM {
 		auto lightVS = D3DUtil::CompileShader(L"Shaders\\Light.hlsl", shaderMacor.data(), "VS", "vs_5_1");
 		auto lightPS = D3DUtil::CompileShader(L"Shaders\\Light.hlsl", shaderMacor.data(), "PS", "ps_5_1");
 
+		ShaderDefines shaderDefines;
+		for (const auto& [name, vs] : shaderMacor) {
+			if (name != nullptr) {
+				shaderDefines.AddDefine(name , vs);
+			}
+		}
+		ShaderHealper shaderHealper;
+		ShaderDesc shaderDesc{};
+		shaderDesc.m_Defines = shaderDefines;
+		shaderDesc.m_Target = "ps_5_1";
+		shaderDesc.m_EnterPoint = "PS";
+		shaderDesc.m_Type = ShaderType::PIXEL_SHADER;
+		shaderDesc.m_FileName = "Shaders\\Light.hlsl";
+		shaderDesc.m_ShaderName = "Lights";
+		shaderHealper.CreateShaderFormFile(shaderDesc);
+		
 		shaderMacor.insert(--shaderMacor.end(), { "ALPHATEST", "1" });
 		auto lightAlphaTestPS = D3DUtil::CompileShader(L"Shaders\\Light.hlsl", shaderMacor.data(), "PS", "ps_5_1");
 
@@ -546,7 +567,7 @@ namespace DSM {
 
 		auto currPassCB = m_CurrFrameResource->m_Resources[typeid(PassConstants).name()];
 		auto byteSize = D3DUtil::CalcCBByteSize(sizeof(PassConstants));
-		memcpy(currPassCB.m_MappedBaseAddress, &passConstants, byteSize);
+		memcpy(currPassCB->m_MappedBaseAddress, &passConstants, byteSize);
 	}
 
 	void DescriptorHeapAPP::UpdateObjCB(const CpuTimer& timer)

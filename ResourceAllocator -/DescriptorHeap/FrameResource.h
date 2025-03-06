@@ -6,7 +6,9 @@
 #include "D3D12Allocatioin.h"
 
 namespace DSM {
+	class D3D12DescriptorCache;
 
+	
 	// 帧资源
 	struct FrameResource
 	{
@@ -26,15 +28,18 @@ namespace DSM {
 			UINT elementSize,
 			const std::string& bufferName);
 
+		void ClearUp(std::uint64_t fenceValue);
+	
 
 		template <class T>
 		using ComPtr = Microsoft::WRL::ComPtr<T>;
 		ComPtr<ID3D12Device> m_Device;
 		ComPtr<ID3D12CommandAllocator> m_CmdListAlloc;						// 每个帧资源都有一个命令列表分配器
 
+		// 管理所有资源的分配
 		std::unique_ptr<D3D12DefaultBufferAllocator> m_DefaultBufferAllocator;
 		std::unique_ptr<D3D12UploadBufferAllocator> m_UploadBufferAllocator;
-		std::unordered_map<std::string, D3D12ResourceLocation> m_Resources;
+		std::unordered_map<std::string, std::shared_ptr<D3D12ResourceLocation>> m_Resources;
 
 		UINT64 m_Fence = 0;													// 当前帧资源的围栏值
 

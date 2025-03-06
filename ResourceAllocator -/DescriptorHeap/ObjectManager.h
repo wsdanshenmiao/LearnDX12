@@ -71,7 +71,7 @@ namespace DSM {
 
 				auto resource = it->second;
 				
-				BYTE* mappedData = static_cast<BYTE*>(resource.m_MappedBaseAddress);
+				BYTE* mappedData = static_cast<BYTE*>(resource->m_MappedBaseAddress);
 
 				decltype(auto) objCB = objFunc(*obj, static_cast<RenderLayer>(i));
 				auto objByteSize = D3DUtil::CalcCBByteSize(sizeof(objCB));

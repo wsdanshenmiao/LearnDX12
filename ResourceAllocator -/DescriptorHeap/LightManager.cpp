@@ -85,7 +85,7 @@ namespace DSM {
 		if (auto it = frameResource->m_Resources.find(m_LightBufferName); it != frameResource->m_Resources.end()) {
 			auto& resource = it->second;
 
-			BYTE* mappedData = static_cast<BYTE*>(resource.m_MappedBaseAddress);
+			BYTE* mappedData = static_cast<BYTE*>(resource->m_MappedBaseAddress);
 			auto dirLightSize = sizeof(DirectionalLight) * m_DirLights.size();
 			auto pointLightSize = sizeof(PointLight) * m_PointLights.size();
 			auto spotLightSize = sizeof(SpotLight) * m_SpotLights.size();
