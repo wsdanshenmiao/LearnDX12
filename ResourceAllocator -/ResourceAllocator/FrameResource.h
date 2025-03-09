@@ -26,6 +26,8 @@ namespace DSM {
 			UINT elementSize,
 			const std::string& bufferName);
 
+		void Clear();
+
 
 		template <class T>
 		using ComPtr = Microsoft::WRL::ComPtr<T>;

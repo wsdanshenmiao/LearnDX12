@@ -26,6 +26,11 @@ namespace DSM {
 		AddUploadBuffer(byteSize, elementSize, bufferName, false);
 	}
 
+	void FrameResource::Clear()
+	{
+		
+	}
+
 	void FrameResource::AddUploadBuffer(
 		UINT elementByteSize,
 		UINT elementSize,

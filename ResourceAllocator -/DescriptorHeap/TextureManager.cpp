@@ -72,35 +72,20 @@ namespace DSM {
 		return m_Textures;
 	}
 
-	D3D12_GPU_DESCRIPTOR_HANDLE TextureManager::GetTextureResourceView(
-		const std::string& texName,
-		UINT descriptorSize) const
+	D3D12DescriptorHandle TextureManager::GetTextureResourceView(const std::string& texName) const
 	{
-		auto handle = m_TexDescriptorHeap->GetGPUDescriptorHandleForHeapStart();
+		auto defaultTex = "DefaultTexture";
 		// 若是不包含该纹理则返回第一个纹理
 		if (m_Textures.contains(texName)) {
-			handle.ptr += m_Textures.find(texName)->second.GetDescriptorIndex() * descriptorSize;
+			return m_TexHandles.find(texName)->second;
 		}
 		else {
-			handle.ptr += m_Textures.find("DefaultTexture")->second.GetDescriptorIndex() * descriptorSize;
+			return m_TexHandles.find(defaultTex)->second;
 		}
-		return handle;
 	}
 
-	ID3D12DescriptorHeap* TextureManager::GetDescriptorHeap() const
+	void TextureManager::CreateTexDescriptor(FrameResource* frameResource)
 	{
-		return  m_TexDescriptorHeap.Get();
-	}
-
-	void TextureManager::CreateTexDescriptor(UINT descriptorSize)
-	{
-		// 创建描述符堆
-		D3D12_DESCRIPTOR_HEAP_DESC desc{};
-		desc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
-		desc.NumDescriptors = m_Textures.size();
-		desc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
-		m_Device->CreateDescriptorHeap(&desc, IID_PPV_ARGS(m_TexDescriptorHeap.ReleaseAndGetAddressOf()));
-
 		D3D12_SHADER_RESOURCE_VIEW_DESC SRVDesc{};
 		SRVDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
 		SRVDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
@@ -110,11 +95,9 @@ namespace DSM {
 			auto& texResource = tex.GetTexture().m_UnderlyingResource->m_Resource;
 			SRVDesc.Format = texResource->GetDesc().Format;
 			SRVDesc.Texture2D.MipLevels = texResource->GetDesc().MipLevels;
-
-			auto handle=m_TexDescriptorHeap->GetCPUDescriptorHandleForHeapStart();
-			handle.ptr += tex.GetDescriptorIndex() * descriptorSize;
 			
-			m_Device->CreateShaderResourceView(texResource.Get() ,&SRVDesc,handle);
+			auto handle = frameResource->m_DescriptorHeaps->AllocateAndCreateSRV(texResource.Get(), SRVDesc);
+			m_TexHandles[name] = handle;
 		}
 	}
 

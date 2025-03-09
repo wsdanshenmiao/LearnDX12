@@ -59,8 +59,9 @@ namespace DSM {
         Microsoft::WRL::ComPtr<ID3D12Device> m_Device;
         Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> m_DescriptorHeap;
         D3D12_DESCRIPTOR_HEAP_DESC m_HeapDesc{};
-        std::uint32_t m_DesciptorSize{};
+        std::uint32_t m_DescriptorSize{};
         std::uint32_t m_NumFreeDescriptors{};
+        
         D3D12DescriptorHandle m_FirstHandle{};
         D3D12DescriptorHandle m_NextFreeHandle{};
     };
@@ -75,11 +76,13 @@ namespace DSM {
         D3D12DescriptorHandle AllocateAndCopy(
             D3D12_DESCRIPTOR_HEAP_TYPE heapType,
             const std::vector<D3D12_CPU_DESCRIPTOR_HANDLE>& srcHandle);
+        D3D12DescriptorHandle AllocateAndCreateSRV(ID3D12Resource* resource, const D3D12_SHADER_RESOURCE_VIEW_DESC& desc);
         void Clear();
         
     private:
         // 存储不同描述符的数组
         std::array<std::unique_ptr<D3D12DescriptorHeap>, D3D12_DESCRIPTOR_HEAP_TYPE_NUM_TYPES> m_DescriptorHeaps;
+        ID3D12Device* m_Device;
     };
     
 }

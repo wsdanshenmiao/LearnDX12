@@ -465,7 +465,7 @@ namespace DSM {
                 PS->m_pShader->GetBufferSize()};   
             }
 
-            ThrowIfFailed(device->CreateGraphicsPipelineState(&m_PSODesc, IID_PPV_ARGS(&m_pPipelineState)));
+            ThrowIfFailed(device->CreateGraphicsPipelineState(&m_PSODesc, IID_PPV_ARGS(m_pPipelineState.GetAddressOf())));
         }
 
         
@@ -481,7 +481,7 @@ namespace DSM {
         }
         // 绑定着色器参数中的常量缓冲区
         for (auto& shaderInfo : m_ShaderInfos) {
-            if (shaderInfo!= nullptr) {
+            if (shaderInfo != nullptr && shaderInfo->m_pParamData != nullptr) {
                 // 更新参数常量缓冲区
                 shaderInfo->m_pParamData->UpdateBuffer();
                 cmdList->SetGraphicsRootConstantBufferView(
@@ -516,7 +516,7 @@ namespace DSM {
             cmdList->SetGraphicsRootDescriptorTable(m_UAVSignatureBindSlot + i, gpuHandle);
         }
 
-        for (int i = 0; i < m_SamplerStates.size(); ++i) {
+        /*for (int i = 0; i < m_SamplerStates.size(); ++i) {
             auto handleSize = m_SamplerStates[i].m_Handle.size();
             std::vector<D3D12_CPU_DESCRIPTOR_HANDLE> cpuHandles(handleSize);
             for (int j = 0; j < handleSize; ++j) {
@@ -525,7 +525,7 @@ namespace DSM {
             }
             auto gpuHandle = descriptorCache->AllocateAndCopy(D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER, cpuHandles);
             cmdList->SetGraphicsRootDescriptorTable(m_SamplerBindSlot + i, gpuHandle);
-        }
+        }*/
     }
 
 
@@ -905,6 +905,78 @@ namespace DSM {
     void ShaderHelper::SetFrameCount(std::uint32_t frameCount)
     {
         FrameCount = frameCount;
+    }
+
+    void ShaderHelper::SetConstantBufferByName(const std::string& name, std::shared_ptr<D3D12ResourceLocation> cb)
+    {
+        auto findByName = [&name](const auto& parame) {
+            return parame.second.m_Name == name;
+        };
+        auto it = std::find_if(m_Impl->m_ConstantBuffers.begin(), m_Impl->m_ConstantBuffers.end(), findByName);
+        if (it != m_Impl->m_ConstantBuffers.end()) {
+            it->second.m_Resource = cb;
+        }
+    }
+
+    void ShaderHelper::SetConstantBufferBySlot(std::uint32_t slot, std::shared_ptr<D3D12ResourceLocation> cb)
+    {
+        if (auto it = m_Impl->m_ConstantBuffers.find(slot); it != m_Impl->m_ConstantBuffers.end()) {
+            it->second.m_Resource = cb;
+        }
+    }
+
+    void ShaderHelper::SetShaderResourceByName(const std::string& name, const std::vector<D3D12DescriptorHandle>& resource)
+    {
+        auto findByName = [&name](const auto& parame) {
+            return parame.second.m_Name == name;
+        };
+        auto it = std::find_if(m_Impl->m_ShaderResources.begin(), m_Impl->m_ShaderResources.end(), findByName);
+        if (it != m_Impl->m_ShaderResources.end()) {
+            it->second.m_Handle = resource;
+        }
+    }
+
+    void ShaderHelper::SetShaderResourceBySlot(std::uint32_t slot, const std::vector<D3D12DescriptorHandle>& resource)
+    {
+        if (auto it = m_Impl->m_ShaderResources.find(slot); it != m_Impl->m_ShaderResources.end()) {
+            it->second.m_Handle = resource;
+        }
+    }
+
+    void ShaderHelper::SetRWResourceByName(const std::string& name, const std::vector<D3D12DescriptorHandle>& resource)
+    {
+        auto findByName = [&name](const auto& parame) {
+            return parame.second.m_Name == name;
+        };
+        auto it = std::find_if(m_Impl->m_RWResources.begin(), m_Impl->m_RWResources.end(), findByName);
+        if (it != m_Impl->m_RWResources.end()) {
+            it->second.m_Handle = resource;
+        }
+    }
+
+    void ShaderHelper::SetRWResrouceBySlot(std::uint32_t slot, const std::vector<D3D12DescriptorHandle>& resource)
+    {
+        if (auto it = m_Impl->m_RWResources.find(slot); it != m_Impl->m_RWResources.end()) {
+            it->second.m_Handle = resource;
+        }
+    }
+
+    void ShaderHelper::SetSampleStateByName(const std::string& name, const std::vector<D3D12DescriptorHandle>& sampleState)
+    {
+        auto findByName = [&name](const auto& parame) {
+            return parame.second.m_Name == name;
+        };
+        auto it = std::find_if(m_Impl->m_SamplerStates.begin(), m_Impl->m_SamplerStates.end(), findByName);
+        if (it != m_Impl->m_SamplerStates.end()) {
+            it->second.m_Handle = sampleState;
+        }
+    }
+
+    void ShaderHelper::SetSampleStateBySlot(std::uint32_t slot, const std::vector<D3D12DescriptorHandle>& sampleState)
+    {
+        if (auto it = m_Impl->m_SamplerStates.find(slot); it != m_Impl->m_SamplerStates.end()) {
+            it->second.m_Handle = sampleState;
+        }
     }
 
     std::shared_ptr<IConstantBufferVariable> ShaderHelper::GetConstantBufferVariable(const std::string& name)

@@ -14,7 +14,7 @@ int WinMain(
 #endif
 
 	try {
-		DescriptorHeapAPP app(hInstance, L"ResourceAllocator", 1024, 768);
+		DescriptorHeapAPP app(hInstance, L"DescriptorHeapAPP", 1024, 768);
 		app.OnInit();
 		return app.Run();
 	}

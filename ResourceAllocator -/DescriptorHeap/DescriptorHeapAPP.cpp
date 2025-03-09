@@ -111,22 +111,7 @@ namespace DSM {
 
 		m_CommandList->OMSetRenderTargets(1, &currBackBV, true, &dsv);
 
-
-
-		ID3D12DescriptorHeap* texHeap[] = { texManager.GetDescriptorHeap() };
-		m_CommandList->SetDescriptorHeaps(_countof(texHeap), texHeap);
-		m_CommandList->SetGraphicsRootSignature(m_RootSignature.Get());
-
-		auto& constBuffers = m_CurrFrameResource->m_Resources;
-		if (auto it = constBuffers.find(typeid(PassConstants).name()); it != constBuffers.end()) {
-			auto& passConstants = it->second;
-			m_CommandList->SetGraphicsRootConstantBufferView(1, passConstants->m_GPUVirtualAddress);
-		}
-		if (auto it = constBuffers.find(lightManager.GetLightBufferName()); it != constBuffers.end()) {
-			auto& lightConstants = it->second;
-			m_CommandList->SetGraphicsRootConstantBufferView(2, lightConstants->m_GPUVirtualAddress);
-		}
-
+		
 		// 绘制不透明物体
 		RenderScene(RenderLayer::Opaque);
 
@@ -178,9 +163,16 @@ namespace DSM {
 		auto& objManager = ObjectManager::GetInstance();
 		auto& modelManager = ModelManager::GetInstance();
 		auto& texManager = TextureManager::GetInstance();
+		auto&lightManager = LightManager::GetInstance();
 
 		auto objCBSize = D3DUtil::CalcCBByteSize(sizeof(ObjectConstants));
 		auto matCBSize = D3DUtil::CalcCBByteSize(sizeof(MaterialConstants));
+		
+		auto& constBuffers = m_CurrFrameResource->m_Resources;
+		auto passConstants = constBuffers.find(typeid(PassConstants).name());
+		m_ShaderHelper.SetConstantBufferByName("gPassCB", passConstants->second);
+		auto lightConstants = constBuffers.find(lightManager.GetLightBufferName());
+		m_ShaderHelper.SetConstantBufferByName("Lights", lightConstants->second);
 
 		for (const auto& [name, obj] : objManager.GetAllObject()[(int)layer]) {
 			if (auto model = obj->GetModel(); model != nullptr) {
@@ -190,21 +182,25 @@ namespace DSM {
 				m_CommandList->IASetVertexBuffers(0, 1, &vertexBV);
 				m_CommandList->IASetIndexBuffer(&indexBV);
 
-				auto objHandle = m_CurrFrameResource->m_Resources[name]->m_GPUVirtualAddress;
-				m_CommandList->SetGraphicsRootConstantBufferView(0, objHandle);
-
+				auto objHandle = m_CurrFrameResource->m_Resources[name];
+				m_ShaderHelper.SetConstantBufferByName("ObjectConstants", objHandle);
+				
 				for (const auto& [name, drawItem] : meshData->m_DrawArgs) {
 					auto matIndex = model->GetMesh(name)->m_MaterialIndex;
 					const auto& mat = model->GetMaterial(matIndex);
 
 					auto diffuseTex = mat.Get<std::string>("Diffuse");
 					std::string texName = diffuseTex == nullptr ? "" : *diffuseTex;
-					auto handle = texManager.GetTextureResourceView(texName, m_CbvSrvUavDescriptorSize);
-					m_CommandList->SetGraphicsRootDescriptorTable(4, handle);
-
-					auto matHandle = objHandle + objCBSize + matIndex * matCBSize;
-					m_CommandList->SetGraphicsRootConstantBufferView(3, matHandle);
-
+					auto handle = texManager.GetTextureResourceView(texName);
+					m_ShaderHelper.SetShaderResourceByName("gDiffuse", {handle});
+					
+					m_ShaderHelper.SetConstantBufferByName("MaterialConstants", objHandle);
+					
+					auto pass = m_ShaderHelper.GetShaderPass("Light");
+					auto inputLayout = VertexPosLNormalTex::GetInputLayout();
+					pass->SetInputLayout({inputLayout.data(), inputLayout.size()});
+					pass->Apply(m_CommandList.Get(), m_D3D12Device.Get(), m_CurrFrameResource);
+					
 					m_CommandList->DrawIndexedInstanced(drawItem.m_IndexCount, 1, drawItem.m_StarIndexLocation, drawItem.m_BaseVertexLocation, 0);
 				}
 			}
@@ -244,7 +240,6 @@ namespace DSM {
 				shaderDefines.AddDefine(name , vs);
 			}
 		}
-		ShaderHelper shaderHelper;
 		ShaderDesc shaderDesc{};
 		shaderDesc.m_Defines = shaderDefines;
 		shaderDesc.m_Target = "ps_6_1";
@@ -252,16 +247,16 @@ namespace DSM {
 		shaderDesc.m_Type = ShaderType::PIXEL_SHADER;
 		shaderDesc.m_FileName = "Shaders\\Light.hlsl";
 		shaderDesc.m_ShaderName = "LightsPS";
-		shaderHelper.CreateShaderFormFile(shaderDesc);
+		m_ShaderHelper.CreateShaderFormFile(shaderDesc);
 		shaderDesc.m_EnterPoint = "VS";
 		shaderDesc.m_Type = ShaderType::VERTEX_SHADER;
 		shaderDesc.m_ShaderName = "LightsVS";
 		shaderDesc.m_Target = "vs_6_1";
-		shaderHelper.CreateShaderFormFile(shaderDesc);
+		m_ShaderHelper.CreateShaderFormFile(shaderDesc);
 		ShaderPassDesc passDesc{};
 		passDesc.m_VSName = "LightsVS";
 		passDesc.m_PSName = "LightsPS";
-		shaderHelper.AddShaderPass("Light", passDesc, m_D3D12Device.Get());
+		m_ShaderHelper.AddShaderPass("Light", passDesc, m_D3D12Device.Get());
 		
 		
 		shaderMacor.insert(--shaderMacor.end(), { "ALPHATEST", "1" });
@@ -370,7 +365,9 @@ namespace DSM {
 	{
 		auto& texManager = TextureManager::GetInstance();
 
-		texManager.CreateTexDescriptor(m_CbvSrvUavDescriptorSize);
+		for (auto& resource : m_FrameResources) {
+			texManager.CreateTexDescriptor(resource.get());
+		};
 	}
 
 

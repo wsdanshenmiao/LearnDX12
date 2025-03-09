@@ -69,7 +69,7 @@ namespace DSM {
 
 
     D3D12DescriptorHeap::D3D12DescriptorHeap(ID3D12Device* device, std::uint32_t descriptorSize)
-        :m_Device(device){
+        :m_Device(device), m_DescriptorSize(descriptorSize){
         assert(device != nullptr);
     }
 
@@ -83,7 +83,12 @@ namespace DSM {
 
     void D3D12DescriptorHeap::Create(const std::wstring& name, D3D12_DESCRIPTOR_HEAP_TYPE heapType, std::uint32_t maxCount)
     {
-        m_HeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
+        if (heapType == D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV || heapType == D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER) {
+            m_HeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
+        }
+        else {
+            m_HeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
+        }
         m_HeapDesc.NumDescriptors = maxCount;
         m_HeapDesc.Type = heapType;
 
@@ -93,7 +98,7 @@ namespace DSM {
 #endif
 
         m_NumFreeDescriptors = m_HeapDesc.NumDescriptors;
-        m_DesciptorSize = m_Device->GetDescriptorHandleIncrementSize(m_HeapDesc.Type);
+        m_DescriptorSize = m_Device->GetDescriptorHandleIncrementSize(m_HeapDesc.Type);
         m_FirstHandle = {m_DescriptorHeap->GetCPUDescriptorHandleForHeapStart(),
             m_DescriptorHeap->GetGPUDescriptorHandleForHeapStart()};
         m_NextFreeHandle = m_FirstHandle;
@@ -120,7 +125,7 @@ namespace DSM {
         auto cpuPtr = handle.GetCpuPtr();
         auto gpuPtr = handle.GetGpuPtr();
         if (cpuPtr < m_FirstHandle.GetCpuPtr() ||
-            cpuPtr >= m_NextFreeHandle.GetCpuPtr() + m_HeapDesc.NumDescriptors * m_DesciptorSize) {
+            cpuPtr >= m_NextFreeHandle.GetCpuPtr() + m_HeapDesc.NumDescriptors * m_DescriptorSize) {
             return false;
         }
         if (gpuPtr - m_FirstHandle.GetGpuPtr() != cpuPtr - m_FirstHandle.GetCpuPtr()) {
@@ -162,19 +167,19 @@ namespace DSM {
 
     std::uint32_t D3D12DescriptorHeap::GetOffsetOfHandle(const D3D12DescriptorHandle& handle) const noexcept
     {
-        return (handle.GetCpuPtr() - m_FirstHandle.GetCpuPtr()) / m_DesciptorSize;
+        return (handle.GetCpuPtr() - m_FirstHandle.GetCpuPtr()) / m_DescriptorSize;
     }
 
     std::uint32_t D3D12DescriptorHeap::GetDescriptorSize() const noexcept
     {
-        return m_DesciptorSize;
+        return m_DescriptorSize;
     }
 
     D3D12DescriptorHandle D3D12DescriptorHeap::operator[](std::uint32_t index) const noexcept
     {
         assert(index < m_HeapDesc.NumDescriptors);
 
-        return m_FirstHandle + index * m_DesciptorSize;
+        return m_FirstHandle + index * m_DescriptorSize;
     }
 
 
@@ -183,7 +188,7 @@ namespace DSM {
     // D3D12DescriptorCache Implementation
     //
     D3D12DescriptorCache::D3D12DescriptorCache(ID3D12Device* device, std::uint32_t maxCount)
-    {
+        :m_Device(device){
         assert(device != nullptr);
         
         for (int i = 0; i < m_DescriptorHeaps.size(); ++i) {
@@ -209,6 +214,15 @@ namespace DSM {
         auto index = static_cast<int>(heapType);
         assert(index < m_DescriptorHeaps.size());
         return m_DescriptorHeaps[index]->AllocateAndCopy(srcHandle);
+    }
+
+    D3D12DescriptorHandle D3D12DescriptorCache::AllocateAndCreateSRV(
+        ID3D12Resource* resource,
+        const D3D12_SHADER_RESOURCE_VIEW_DESC& desc)
+    {
+        auto handle = m_DescriptorHeaps[static_cast<int>(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV)]->Allocate();
+        m_Device->CreateShaderResourceView(resource, &desc, handle);
+        return handle;
     }
 
     void D3D12DescriptorCache::Clear()

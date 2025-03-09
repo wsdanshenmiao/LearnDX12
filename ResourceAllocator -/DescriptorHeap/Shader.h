@@ -12,6 +12,9 @@
 #include <wrl/client.h>
 #include <dxcapi.h>
 
+#include "D3D12DescriptorHeap.h"
+#include "D3D12Resource.h"
+
 namespace DSM {
     class FrameResource;
     
@@ -116,6 +119,15 @@ namespace DSM {
         
         void SetFrameCount(std::uint32_t frameCount);
 
+        void SetConstantBufferByName(const std::string& name, std::shared_ptr<D3D12ResourceLocation> cb);
+        void SetConstantBufferBySlot(std::uint32_t slot, std::shared_ptr<D3D12ResourceLocation> cb);
+        void SetShaderResourceByName(const std::string& name, const std::vector<D3D12DescriptorHandle>& resource);
+        void SetShaderResourceBySlot(std::uint32_t slot, const std::vector<D3D12DescriptorHandle>& resource);
+        void SetRWResourceByName(const std::string& name, const std::vector<D3D12DescriptorHandle>& resource);
+        void SetRWResrouceBySlot(std::uint32_t slot, const std::vector<D3D12DescriptorHandle>& resource);
+        void SetSampleStateByName(const std::string& name, const std::vector<D3D12DescriptorHandle>& sampleState);
+        void SetSampleStateBySlot(std::uint32_t slot, const std::vector<D3D12DescriptorHandle>& sampleState);
+        
         std::shared_ptr<IConstantBufferVariable> GetConstantBufferVariable(const std::string& name);
         
         void AddShaderPass(const std::string& shaderPassName, const ShaderPassDesc& passDesc, ID3D12Device* device);

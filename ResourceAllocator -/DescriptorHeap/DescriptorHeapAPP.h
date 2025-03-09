@@ -6,6 +6,7 @@
 #include "MeshData.h"
 #include "Material.h"
 #include "ObjectManager.h"
+#include "Shader.h"
 #include "Waves.h"
 
 namespace DSM {
@@ -61,6 +62,8 @@ namespace DSM {
 		UINT m_CurrFrameIndex = 0;
 
 		DirectX::XMFLOAT4 m_ReflectPlane;
+
+		ShaderHelper m_ShaderHelper;
 	};
 
 

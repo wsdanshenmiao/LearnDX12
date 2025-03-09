@@ -34,6 +34,7 @@ namespace DSM {
 		if (fenceValue >= m_Fence) {
 			m_DefaultBufferAllocator->ClearUpAllocations();
 			m_UploadBufferAllocator->ClearUpAllocations();
+			m_DescriptorCaches->Clear();
 		}
 	}
 
