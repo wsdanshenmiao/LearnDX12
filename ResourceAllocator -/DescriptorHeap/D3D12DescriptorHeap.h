@@ -35,7 +35,7 @@ namespace DSM {
     class D3D12DescriptorHeap
     {
     public:
-        D3D12DescriptorHeap(ID3D12Device* device);
+        D3D12DescriptorHeap(ID3D12Device* device, std::uint32_t descriptorSize);
         ~D3D12DescriptorHeap();
 
         // 创建描述符堆
@@ -47,6 +47,8 @@ namespace DSM {
         bool HasValidSpace(std::uint32_t numDescriptors) const noexcept;
         bool IsValidHandle(const D3D12DescriptorHandle& handle) const noexcept;
         D3D12DescriptorHandle AllocateAndCopy(const std::vector<D3D12_CPU_DESCRIPTOR_HANDLE>& srcHandle);
+        D3D12DescriptorHandle Allocate();
+        
         ID3D12DescriptorHeap* GetHeap() const noexcept;
         std::uint32_t GetOffsetOfHandle(const D3D12DescriptorHandle& handle) const noexcept; 
         std::uint32_t GetDescriptorSize() const noexcept;

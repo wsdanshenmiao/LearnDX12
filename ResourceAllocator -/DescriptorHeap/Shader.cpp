@@ -1,5 +1,10 @@
 #include "Shader.h"
 
+#include "D3D12DescriptorHeap.h"
+#include "D3D12Resource.h"
+#include "FrameResource.h"
+
+
 using namespace DirectX;
 using Microsoft::WRL::ComPtr;
 
@@ -10,37 +15,45 @@ namespace DSM {
         std::string m_Name;
         std::uint32_t m_BindPoint;
         std::uint32_t m_RegisterSpace;
-        std::shared_ptr<D3D12ResourceLocation> m_Resource;
     };
 
 
     // 着色器资源
     struct ShaderResource : ShaderParameter
     {
+        std::vector<D3D12DescriptorHandle> m_Handle;
+        std::uint32_t m_BindCount;
         D3D12_SRV_DIMENSION m_Dimension;
     };
 
     // 可读写资源
     struct RWResource : ShaderParameter
     {
+        std::vector<D3D12DescriptorHandle> m_Handle;
+        std::uint32_t m_BindCount;
         D3D12_UAV_DIMENSION m_Dimension;
         uint32_t m_InitialCount;
         bool m_EnableCounter;
         bool m_FirstInit;
     };
 
-    struct SamplerState : ShaderParameter{};
+    struct SamplerState : ShaderParameter
+    {
+        std::vector<D3D12DescriptorHandle> m_Handle;
+    };
 
     // 常量缓冲区
     struct ConstantBuffer : ShaderParameter
     {
         std::uint32_t m_NumFrameDirty;
         std::vector<std::uint8_t> m_Data;
-
+        std::shared_ptr<D3D12ResourceLocation> m_Resource;
+        
         // 更新常量缓冲区
         void UpdateBuffer()
         {
             if (m_NumFrameDirty > 0) {
+                assert(m_Resource != nullptr);
                 memcpy(m_Resource->m_MappedBaseAddress, m_Data.data(), m_Data.size());
                 m_NumFrameDirty--;
             }
@@ -75,7 +88,7 @@ namespace DSM {
             byteSize = min(byteSize, m_ByteSize);
             memcpy(m_ConstantBuffer->m_Data.data() + m_StartOffset, data, byteSize);
 
-            m_ConstantBuffer->m_NumFrameDirty = ShaderHealper::FrameCount;
+            m_ConstantBuffer->m_NumFrameDirty = ShaderHelper::FrameCount;
         }
 
         std::string m_Name;
@@ -117,18 +130,21 @@ namespace DSM {
     void ShaderDefines::AddDefine(const std::string& name, const std::string& value)
     {
         m_Defines[name] = value;
+        m_DefinesDxc[AnsiToWString(name)] = AnsiToWString(value);
     }
 
     void ShaderDefines::RemoveDefine(const std::string& name)
     {
         if (m_Defines.contains(name)) {
             m_Defines.erase(name);
+            m_DefinesDxc.erase(AnsiToWString(name));
         }
     }
 
     std::vector<D3D_SHADER_MACRO> ShaderDefines::GetShaderDefines() const
     {
-        std::vector<D3D_SHADER_MACRO> defines(m_Defines.size() + 1);
+        std::vector<D3D_SHADER_MACRO> defines;
+        defines.reserve(m_Defines.size() + 1);
         for (const auto& define : m_Defines) {
             defines.push_back({ define.first.c_str(), define.second.c_str() });
         }
@@ -136,23 +152,525 @@ namespace DSM {
         return defines;
     }
 
+    std::vector<DxcDefine> ShaderDefines::GetShaderDefinesDxc() const
+    {
+        std::vector<DxcDefine> defines;
+        defines.reserve(m_DefinesDxc.size());
+        for (const auto& define : m_DefinesDxc) {
+            defines.push_back({ define.first.c_str(), define.second.c_str() });
+        }
+        return defines;
+    }
 
 
+#pragma region Shader Pass
+    //
+    // ShaderPass Implementation
+    //
+    struct ShaderPass : IShaderPass
+    {
+        ShaderPass(ShaderHelper* shaderHelper,
+            const std::string& passName,
+            std::unordered_map<std::uint32_t, ConstantBuffer>& cBuffers,
+            std::unordered_map<std::uint32_t, ShaderResource>& shaderResources,
+            std::unordered_map<std::uint32_t, RWResource>& rwResources,
+            std::unordered_map<std::uint32_t, SamplerState>& samplerStates);
+        
+        void SetBlendState(const D3D12_BLEND_DESC& blendDesc) override;
+        void SetRasterizerState(const D3D12_RASTERIZER_DESC& rasterizerDesc) override;
+        void SetDepthStencilState(const D3D12_DEPTH_STENCIL_DESC& depthStencilDesc) override;
+        void SetInputLayout(const D3D12_INPUT_LAYOUT_DESC& inputLayout) override;
+        void SetPrimitiveTopologyType(D3D12_PRIMITIVE_TOPOLOGY_TYPE topology) override;
+        void SetSampleDesc(DXGI_SAMPLE_DESC sampleDesc) override;
+        void SetSampleDesc(std::uint32_t count, std::uint32_t quality) override;
+        void SetDSVFormat(DXGI_FORMAT format) override;
+        void SetRTVFormat(const std::vector<DXGI_FORMAT>& formats) override;
+        
+        std::shared_ptr<IConstantBufferVariable> VSGetParamByName(const std::string& paramName) override;
+        std::shared_ptr<IConstantBufferVariable> DSGetParamByName(const std::string& paramName) override;
+        std::shared_ptr<IConstantBufferVariable> HSGetParamByName(const std::string& paramName) override;
+        std::shared_ptr<IConstantBufferVariable> GSGetParamByName(const std::string& paramName) override;
+        std::shared_ptr<IConstantBufferVariable> PSGetParamByName(const std::string& paramName) override;
+        std::shared_ptr<IConstantBufferVariable> CSGetParamByName(const std::string& paramName) override;
+        std::shared_ptr<IConstantBufferVariable> GetParamByName(const std::string& paramName, ShaderType type);
+        
+        const ShaderHelper* GetShaderHelper() const override;
+        const std::string& GetPassName() const override;
+        
+        void Dispatch(ID3D12GraphicsCommandList* cmdList, std::uint32_t threadX, std::uint32_t threadY,
+            std::uint32_t threadZ) override;
+        void Apply(ID3D12GraphicsCommandList* cmdList, ID3D12Device* device, FrameResource* frameResourc) override;
+        
+
+
+        std::string m_PassName{};
+        const ShaderHelper* m_pShaderHealper = nullptr;
+
+        // 着色器信息
+        std::vector<std::shared_ptr<ShaderInfo>> m_ShaderInfos{};
+
+        // 来自Shader中的共用资源
+        std::unordered_map<std::uint32_t, ConstantBuffer>& m_CBuffers;
+        std::unordered_map<std::uint32_t, ShaderResource>& m_ShaderResources;
+        std::unordered_map<std::uint32_t, RWResource>& m_RWResources;
+        std::unordered_map<std::uint32_t, SamplerState>& m_SamplerStates;
+   
+
+        ComPtr<ID3D12RootSignature> m_pRootSignature = nullptr;
+        
+        // 用于最后生成PSO
+        D3D12_GRAPHICS_PIPELINE_STATE_DESC m_PSODesc{};
+        // 一趟Pass有一个PSO， 可能会有重复的PSO，暂不考虑
+        ComPtr<ID3D12PipelineState> m_pPipelineState = nullptr;
+        std::uint32_t m_CBVSignatureBindSlot = -1;
+        std::uint32_t m_SRVSignatureBindSlot = -1;
+        std::uint32_t m_UAVSignatureBindSlot = -1;
+        std::uint32_t m_SamplerBindSlot = -1;
+
+
+    private:
+        void CreateRootSignature(ID3D12Device* device);
+        const std::array<const D3D12_STATIC_SAMPLER_DESC, 6> CreateStaticSamplers() const noexcept;
+        
+    };
+
+    ShaderPass::ShaderPass(ShaderHelper* shaderHelper,
+        const std::string& passName,
+        std::unordered_map<std::uint32_t, ConstantBuffer>& cBuffers,
+        std::unordered_map<std::uint32_t, ShaderResource>& shaderResources,
+        std::unordered_map<std::uint32_t, RWResource>& rwResources,
+        std::unordered_map<std::uint32_t, SamplerState>& samplerStates)
+            :m_PassName(passName),
+            m_pShaderHealper(shaderHelper),
+            m_CBuffers(cBuffers),
+            m_ShaderResources(shaderResources),
+            m_RWResources(rwResources),
+            m_SamplerStates(samplerStates){
+        m_ShaderInfos.resize(static_cast<int>(ShaderType::NUM_SHADER_TYPES));
+
+        // 设置默认的PSO
+        ZeroMemory(&m_PSODesc, sizeof(m_PSODesc));
+        D3D12_BLEND_DESC blendDesc{};
+        blendDesc.AlphaToCoverageEnable = false;
+        blendDesc.IndependentBlendEnable = false;
+        blendDesc.RenderTarget[0].BlendEnable = false;
+        blendDesc.RenderTarget[0].LogicOpEnable = false;
+        blendDesc.RenderTarget[0].SrcBlend = D3D12_BLEND_ONE;
+        blendDesc.RenderTarget[0].DestBlend = D3D12_BLEND_ZERO;
+        blendDesc.RenderTarget[0].BlendOp = D3D12_BLEND_OP_ADD;
+        blendDesc.RenderTarget[0].SrcBlendAlpha = D3D12_BLEND_ONE;
+        blendDesc.RenderTarget[0].DestBlendAlpha = D3D12_BLEND_ZERO;
+        blendDesc.RenderTarget[0].BlendOpAlpha = D3D12_BLEND_OP_ADD;
+        blendDesc.RenderTarget[0].LogicOp = D3D12_LOGIC_OP_NOOP;
+        blendDesc.RenderTarget[0].RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;
+        D3D12_RASTERIZER_DESC rasterizerDesc{};
+        rasterizerDesc.FillMode = D3D12_FILL_MODE_SOLID;
+        rasterizerDesc.CullMode = D3D12_CULL_MODE_BACK;
+        rasterizerDesc.FrontCounterClockwise = FALSE;
+        rasterizerDesc.DepthBias = D3D12_DEFAULT_DEPTH_BIAS;
+        rasterizerDesc.DepthBiasClamp = D3D12_DEFAULT_DEPTH_BIAS_CLAMP;
+        rasterizerDesc.SlopeScaledDepthBias = D3D12_DEFAULT_SLOPE_SCALED_DEPTH_BIAS;
+        rasterizerDesc.DepthClipEnable = TRUE;
+        rasterizerDesc.MultisampleEnable = FALSE;
+        rasterizerDesc.AntialiasedLineEnable = FALSE;
+        rasterizerDesc.ForcedSampleCount = 0;
+        rasterizerDesc.ConservativeRaster = D3D12_CONSERVATIVE_RASTERIZATION_MODE_OFF;
+        D3D12_DEPTH_STENCIL_DESC depthStencilDesc{};
+        depthStencilDesc.DepthEnable = TRUE;
+        depthStencilDesc.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ALL;
+        depthStencilDesc.DepthFunc = D3D12_COMPARISON_FUNC_LESS;
+        depthStencilDesc.StencilEnable = FALSE;
+        depthStencilDesc.StencilReadMask = D3D12_DEFAULT_STENCIL_READ_MASK;
+        depthStencilDesc.StencilWriteMask = D3D12_DEFAULT_STENCIL_WRITE_MASK;
+        const D3D12_DEPTH_STENCILOP_DESC defaultStencilOp ={
+            D3D12_STENCIL_OP_KEEP, D3D12_STENCIL_OP_KEEP, D3D12_STENCIL_OP_KEEP, D3D12_COMPARISON_FUNC_ALWAYS };
+        depthStencilDesc.FrontFace = defaultStencilOp;
+        depthStencilDesc.BackFace = defaultStencilOp;
+
+        m_PSODesc.SampleMask = UINT_MAX;
+        m_PSODesc.BlendState = blendDesc;
+        m_PSODesc.RasterizerState = rasterizerDesc;
+        m_PSODesc.DepthStencilState = depthStencilDesc;
+        m_PSODesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
+        m_PSODesc.SampleDesc = {1, 0};
+        m_PSODesc.NumRenderTargets = 1;
+        m_PSODesc.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM;
+        m_PSODesc.DSVFormat = DXGI_FORMAT_D24_UNORM_S8_UINT;
+    }
+
+    void ShaderPass::SetBlendState(const D3D12_BLEND_DESC& blendDesc)
+    {
+        m_PSODesc.BlendState = blendDesc;
+    }
+
+    void ShaderPass::SetRasterizerState(const D3D12_RASTERIZER_DESC& rasterizerDesc)
+    {
+        m_PSODesc.RasterizerState = rasterizerDesc;
+    }
+
+    void ShaderPass::SetDepthStencilState(const D3D12_DEPTH_STENCIL_DESC& depthStencilDesc)
+    {
+        m_PSODesc.DepthStencilState = depthStencilDesc;
+    }
+
+    void ShaderPass::SetInputLayout(const D3D12_INPUT_LAYOUT_DESC& inputLayout)
+    {
+        m_PSODesc.InputLayout = inputLayout;
+    }
+
+    void ShaderPass::SetPrimitiveTopologyType(D3D12_PRIMITIVE_TOPOLOGY_TYPE topology)
+    {
+        m_PSODesc.PrimitiveTopologyType = topology;
+    }
+
+    void ShaderPass::SetSampleDesc(DXGI_SAMPLE_DESC sampleDesc)
+    {
+        m_PSODesc.SampleDesc = sampleDesc;
+    }
+
+    void ShaderPass::SetSampleDesc(std::uint32_t count, std::uint32_t quality)
+    {
+        m_PSODesc.SampleDesc = {count, quality};
+    }
+
+    void ShaderPass::SetDSVFormat(DXGI_FORMAT format)
+    {
+        m_PSODesc.DSVFormat = format;
+    }
+
+    void ShaderPass::SetRTVFormat(const std::vector<DXGI_FORMAT>& formats)
+    {
+        assert(formats.size() <= 8);
+        
+        for (std::size_t i = 0; i < formats.size(); ++i) {
+            m_PSODesc.RTVFormats[i] = formats[i];
+        }
+        m_PSODesc.NumRenderTargets = formats.size();
+    }
+
+    std::shared_ptr<IConstantBufferVariable> ShaderPass::VSGetParamByName(const std::string& paramName)
+    {
+        return GetParamByName(paramName, ShaderType::VERTEX_SHADER);   
+    }
+
+    std::shared_ptr<IConstantBufferVariable> ShaderPass::DSGetParamByName(const std::string& paramName)
+    {
+        return GetParamByName(paramName, ShaderType::DOMAIN_SHADER);
+    }
+
+    std::shared_ptr<IConstantBufferVariable> ShaderPass::HSGetParamByName(const std::string& paramName)
+    {
+        return GetParamByName(paramName, ShaderType::HULL_SHADER);
+    }
+
+    std::shared_ptr<IConstantBufferVariable> ShaderPass::GSGetParamByName(const std::string& paramName)
+    {
+        return GetParamByName(paramName, ShaderType::GEOMETRY_SHADER);
+    }
+
+    std::shared_ptr<IConstantBufferVariable> ShaderPass::PSGetParamByName(const std::string& paramName)
+    {
+        return GetParamByName(paramName, ShaderType::PIXEL_SHADER);
+    }
+
+    std::shared_ptr<IConstantBufferVariable> ShaderPass::CSGetParamByName(const std::string& paramName)
+    {
+        return GetParamByName(paramName, ShaderType::COMPUTE_SHADER);
+    }
+
+    std::shared_ptr<IConstantBufferVariable> ShaderPass::GetParamByName(const std::string& paramName, ShaderType type)
+    {
+        auto info = m_ShaderInfos[static_cast<int>(type)];
+        if (info != nullptr) {
+            if (auto it = info->m_ConstantBufferVariable.find(paramName); it != info->m_ConstantBufferVariable.end()) {
+                auto ret = std::make_shared<ConstantBufferVariable>();
+                ret->m_Name = paramName;
+                ret->m_ByteSize = it->second->m_ByteSize;
+                ret->m_StartOffset = it->second->m_StartOffset;
+                ret->m_ConstantBuffer = it->second->m_ConstantBuffer;
+                return ret;
+            }
+        }
+        return nullptr;
+    }
+
+    const ShaderHelper* ShaderPass::GetShaderHelper() const
+    {
+        return m_pShaderHealper;
+    }
+
+    const std::string& ShaderPass::GetPassName() const
+    {
+        return m_PassName;
+    }
+
+    void ShaderPass::Dispatch(
+        ID3D12GraphicsCommandList* cmdList,
+        std::uint32_t threadX,
+        std::uint32_t threadY,
+        std::uint32_t threadZ)
+    {
+        assert(cmdList != nullptr);
+        
+        auto pSInfo = m_ShaderInfos[static_cast<int>(ShaderType::COMPUTE_SHADER)];
+        if (pSInfo == nullptr) {
+#ifdef _DEBUG
+            OutputDebugStringA("[Warning]: No compute shader in current effect pass!");
+#endif
+            return;
+        }
+
+        auto pCSInfo = std::dynamic_pointer_cast<ComputeShaderInfo>(pSInfo);
+        // 将线程组数量进行对齐
+        std::uint32_t threadGroupCountX = (threadX + pCSInfo->m_ThreadGroupSizeX - 1) / pCSInfo->m_ThreadGroupSizeX;
+        std::uint32_t threadGroupCountY = (threadY + pCSInfo->m_ThreadGroupSizeY - 1) / pCSInfo->m_ThreadGroupSizeY;
+        std::uint32_t threadGroupCountZ = (threadZ + pCSInfo->m_ThreadGroupSizeZ - 1) / pCSInfo->m_ThreadGroupSizeZ;
+
+        cmdList->Dispatch(threadGroupCountX, threadGroupCountY, threadGroupCountZ);
+    }
+
+    void ShaderPass::Apply(ID3D12GraphicsCommandList* cmdList, ID3D12Device* device, FrameResource* frameResource)
+    {
+        assert(cmdList != nullptr);
+
+        auto getIndex = [](const auto& type) {
+            return static_cast<int>(type);
+        };
+
+        // 未生成根签名或PSO则生成
+        if (m_pRootSignature == nullptr || m_pPipelineState == nullptr) {
+            CreateRootSignature(device);
+
+            // 创建渲染管线对象
+            m_PSODesc.pRootSignature = m_pRootSignature.Get();
+            if (auto VS = m_ShaderInfos[getIndex(ShaderType::VERTEX_SHADER)]; VS != nullptr) {
+                m_PSODesc.VS = {VS->m_pShader->GetBufferPointer(),
+                VS->m_pShader->GetBufferSize()};
+            }
+            if (auto HS = m_ShaderInfos[getIndex(ShaderType::HULL_SHADER)]; HS != nullptr) {
+                m_PSODesc.HS = {HS->m_pShader->GetBufferPointer(),
+                    HS->m_pShader->GetBufferSize()
+                };
+            }
+            if (auto DS = m_ShaderInfos[getIndex(ShaderType::DOMAIN_SHADER)]; DS != nullptr) {
+                m_PSODesc.DS = {DS->m_pShader->GetBufferPointer(),
+                DS->m_pShader->GetBufferSize()};
+            }
+            if (auto GS = m_ShaderInfos[getIndex(ShaderType::GEOMETRY_SHADER)]; GS != nullptr) {
+                m_PSODesc.GS = {GS->m_pShader->GetBufferPointer(),
+                GS->m_pShader->GetBufferSize()};   
+            }
+            if (auto PS = m_ShaderInfos[getIndex(ShaderType::PIXEL_SHADER)]; PS != nullptr) {
+                m_PSODesc.PS = {PS->m_pShader->GetBufferPointer(),
+                PS->m_pShader->GetBufferSize()};   
+            }
+
+            ThrowIfFailed(device->CreateGraphicsPipelineState(&m_PSODesc, IID_PPV_ARGS(&m_pPipelineState)));
+        }
+
+        
+        // 设置资源
+        cmdList->SetPipelineState(m_pPipelineState.Get());
+        cmdList->SetGraphicsRootSignature(m_pRootSignature.Get());
+
+        // 绑定常量缓冲区
+        for (int i = 0; i < m_CBuffers.size(); ++i) {
+            m_CBuffers[i].UpdateBuffer();
+            cmdList->SetGraphicsRootConstantBufferView(
+                m_CBVSignatureBindSlot + i, m_CBuffers[i].m_Resource->m_GPUVirtualAddress);
+        }
+        // 绑定着色器参数中的常量缓冲区
+        for (auto& shaderInfo : m_ShaderInfos) {
+            if (shaderInfo!= nullptr) {
+                // 更新参数常量缓冲区
+                shaderInfo->m_pParamData->UpdateBuffer();
+                cmdList->SetGraphicsRootConstantBufferView(
+                    shaderInfo->m_pParamData->m_BindPoint, shaderInfo->m_pParamData->m_Resource->m_GPUVirtualAddress);
+            }
+        }
+
+        // 绑定着色器资源
+        auto& descriptorCache = frameResource->m_DescriptorCaches;
+        auto heap = frameResource->m_DescriptorHeaps->GetHeap(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+        cmdList->SetDescriptorHeaps(1, &heap);
+        
+        for (int i = 0; i < m_ShaderResources.size(); ++i) {
+            auto handleSize = m_ShaderResources[i].m_Handle.size();
+            std::vector<D3D12_CPU_DESCRIPTOR_HANDLE> cpuHandles(handleSize);
+            for (int j = 0; j < handleSize; ++j) {
+                assert(m_ShaderResources[i].m_Handle[j].IsValid());
+                cpuHandles[j] = m_ShaderResources[i].m_Handle[j];
+            }
+            auto gpuHandle = descriptorCache->AllocateAndCopy(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, cpuHandles);
+            cmdList->SetGraphicsRootDescriptorTable(m_SRVSignatureBindSlot + i, gpuHandle);
+        }
+
+        for (int i = 0; i < m_RWResources.size(); ++i) {
+            auto handleSize = m_RWResources[i].m_Handle.size();
+            std::vector<D3D12_CPU_DESCRIPTOR_HANDLE> cpuHandles(handleSize);
+            for (int j = 0; j < handleSize; ++j) {
+                assert(m_ShaderResources[i].m_Handle[j].IsValid());
+                cpuHandles[j] = m_RWResources[i].m_Handle[j];
+            }
+            auto gpuHandle = descriptorCache->AllocateAndCopy(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, cpuHandles);
+            cmdList->SetGraphicsRootDescriptorTable(m_UAVSignatureBindSlot + i, gpuHandle);
+        }
+
+        for (int i = 0; i < m_SamplerStates.size(); ++i) {
+            auto handleSize = m_SamplerStates[i].m_Handle.size();
+            std::vector<D3D12_CPU_DESCRIPTOR_HANDLE> cpuHandles(handleSize);
+            for (int j = 0; j < handleSize; ++j) {
+                assert(m_ShaderResources[i].m_Handle[j].IsValid());
+                cpuHandles[j] = m_SamplerStates[i].m_Handle[j];
+            }
+            auto gpuHandle = descriptorCache->AllocateAndCopy(D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER, cpuHandles);
+            cmdList->SetGraphicsRootDescriptorTable(m_SamplerBindSlot + i, gpuHandle);
+        }
+    }
+
+
+    void ShaderPass::CreateRootSignature(ID3D12Device* device)
+    {
+        std::vector<D3D12_ROOT_PARAMETER> params{};
+
+        if (m_CBVSignatureBindSlot == -1) {
+            m_CBVSignatureBindSlot = params.size();
+        }
+
+        for (const auto& [bindPoint, cb] : m_CBuffers) {
+            D3D12_ROOT_PARAMETER rootParameter{};
+            rootParameter.ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
+            rootParameter.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+            rootParameter.Constants.ShaderRegister = cb.m_BindPoint;
+            rootParameter.Constants.RegisterSpace = cb.m_RegisterSpace;
+            params.push_back(std::move(rootParameter));
+        }
+
+        m_SRVSignatureBindSlot = params.size();
+        for (const auto& [bindPoint, sr] : m_ShaderResources) {
+            D3D12_ROOT_PARAMETER rootParameter{};
+            D3D12_DESCRIPTOR_RANGE texTable{};
+            texTable.NumDescriptors = sr.m_BindCount;
+            texTable.BaseShaderRegister = sr.m_BindPoint;
+            texTable.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
+            texTable.RegisterSpace = sr.m_RegisterSpace;
+            texTable.OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
+            rootParameter.ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+            rootParameter.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+            rootParameter.DescriptorTable.NumDescriptorRanges = 1;
+            rootParameter.DescriptorTable.pDescriptorRanges = &texTable;
+            params.push_back(std::move(rootParameter));
+        }
+
+        m_UAVSignatureBindSlot = params.size();
+        for (const auto& [bindPoint, rw] : m_RWResources) {
+            D3D12_ROOT_PARAMETER rootParameter{};
+            D3D12_DESCRIPTOR_RANGE texTable{};
+            texTable.NumDescriptors = rw.m_BindCount;
+            texTable.BaseShaderRegister = rw.m_BindPoint;
+            texTable.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_UAV;
+            texTable.RegisterSpace = rw.m_RegisterSpace;
+            texTable.OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
+            rootParameter.ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+            rootParameter.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+            rootParameter.DescriptorTable.NumDescriptorRanges = 1;
+            rootParameter.DescriptorTable.pDescriptorRanges = &texTable;
+            params.push_back(std::move(rootParameter));
+        }
+
+        auto staticSamplers = CreateStaticSamplers();
+        D3D12_ROOT_SIGNATURE_DESC signatureDesc{};
+        signatureDesc.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
+        signatureDesc.NumParameters = params.size();
+        signatureDesc.pParameters = params.data();
+        signatureDesc.NumStaticSamplers = (UINT)staticSamplers.size();
+        signatureDesc.pStaticSamplers = staticSamplers.data();
+        
+        ComPtr<ID3DBlob> errorBlob;
+        ComPtr<ID3DBlob> serializedBlob;
+        
+        // 序列化根签名
+        auto hr = D3D12SerializeRootSignature(&signatureDesc,
+            D3D_ROOT_SIGNATURE_VERSION_1,
+            &errorBlob,
+            &serializedBlob);
+        ThrowIfFailed(hr);
+
+        if (errorBlob != nullptr){
+            OutputDebugStringA((char*)errorBlob->GetBufferPointer());
+        }
+
+        // 创建根签名
+        ThrowIfFailed(device->CreateRootSignature(0,
+            errorBlob->GetBufferPointer(),
+            errorBlob->GetBufferSize(),
+            IID_PPV_ARGS(m_pRootSignature.GetAddressOf())));
+    }
+
+    const std::array<const D3D12_STATIC_SAMPLER_DESC, 6> ShaderPass::CreateStaticSamplers() const noexcept
+    {
+        // 创建六种静态采样器
+        D3D12_STATIC_SAMPLER_DESC staticSampler{};
+        staticSampler.Filter = D3D12_FILTER_MIN_MAG_MIP_POINT;
+        staticSampler.AddressU = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+        staticSampler.AddressV = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+        staticSampler.AddressW = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+        staticSampler.MipLODBias = 0;
+        staticSampler.MaxAnisotropy = 16;
+        staticSampler.ComparisonFunc = D3D12_COMPARISON_FUNC_ALWAYS;
+        staticSampler.MaxLOD = D3D12_FLOAT32_MAX;
+        staticSampler.MinLOD = 0;
+        staticSampler.RegisterSpace = 0;
+        staticSampler.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+        staticSampler.ShaderRegister = 0;
+
+        const auto pointWarp = staticSampler;
+
+        staticSampler.ShaderRegister = 1;
+        staticSampler.Filter = D3D12_FILTER_MIN_MAG_MIP_LINEAR;
+        const auto linearWarp = staticSampler;
+
+        staticSampler.ShaderRegister = 2;
+        staticSampler.Filter = D3D12_FILTER_ANISOTROPIC;
+        const auto anisotropicWarp = staticSampler;
+
+        staticSampler.ShaderRegister = 5;
+        staticSampler.AddressU = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
+        staticSampler.AddressV = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
+        staticSampler.AddressW = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
+        const auto anisotropicClamp = staticSampler;
+
+        staticSampler.ShaderRegister = 4;
+        staticSampler.Filter = D3D12_FILTER_MIN_MAG_MIP_LINEAR;
+        const auto linearClamp = staticSampler;
+
+        staticSampler.ShaderRegister = 3;
+        staticSampler.Filter = D3D12_FILTER_MIN_MAG_MIP_POINT;
+        const auto pointClamp = staticSampler;
+
+        return { pointWarp, linearWarp, anisotropicWarp, pointClamp, linearClamp, anisotropicClamp };
+    }
+#pragma endregion
     
+
+#pragma region ShaderHealper
     //
     // ShaderHealper Implementation
-    //
-    struct ShaderHealper::Impl
+    //    
+#pragma region ShaderHealper Impl
+    struct ShaderHelper::Impl
     {
         ~Impl() = default;
         
-        void GetShaderInfo(std::string name, ShaderType shaderType, ID3DBlob* shaderByteCode);
-        
+        void GetShaderInfo(std::string name, ShaderType shaderType, ID3D12ShaderReflection* shaderReflection);
+        void Clear();
         
         // 存储编译后的 Shader代码
-        std::unordered_map<std::string, Microsoft::WRL::ComPtr<ID3DBlob>> m_ShaderPassByteCode;
+        std::unordered_map<std::string, ComPtr<ID3DBlob>> m_ShaderPassByteCode;
         // 着色器的信息
         std::unordered_map<std::string, std::shared_ptr<ShaderInfo>> m_ShaderInfo;
+
+        std::unordered_map<std::string, std::shared_ptr<IShaderPass>> m_ShaderPass; 
 
         // 各种着色器资源，需要所有着色器的常量缓冲区没有冲突
         std::unordered_map<std::string, std::shared_ptr<ConstantBufferVariable>> m_ConstantBufferVariables;
@@ -181,21 +699,17 @@ namespace DSM {
             const std::string& name);
     };
 
-    void ShaderHealper::Impl::GetShaderInfo(std::string name, ShaderType shaderType, ID3DBlob* shaderByteCode)
+    void ShaderHelper::Impl::GetShaderInfo(std::string name, ShaderType shaderType, ID3D12ShaderReflection* shaderReflection)
     {
-        // 获取着色器反射
-        ComPtr<ID3D12ShaderReflection> shaderReflection;
-        ThrowIfFailed(D3DReflect(shaderByteCode->GetBufferPointer(),
-            shaderByteCode->GetBufferSize(),
-            IID_PPV_ARGS(shaderReflection.GetAddressOf())));
+        ComPtr<ID3D12ShaderReflection> pReflection = shaderReflection;
 
         D3D12_SHADER_DESC shaderDesc{};
-        ThrowIfFailed(shaderReflection->GetDesc(&shaderDesc));
+        ThrowIfFailed(pReflection->GetDesc(&shaderDesc));
 
         if (shaderType == ShaderType::COMPUTE_SHADER) {
             auto SInfo = m_ShaderInfo[name];
             auto CSInfo = std::dynamic_pointer_cast<ComputeShaderInfo>(SInfo);
-            shaderReflection->GetThreadGroupSize(
+            pReflection->GetThreadGroupSize(
                 &CSInfo->m_ThreadGroupSizeX,
                 &CSInfo->m_ThreadGroupSizeY,
                 &CSInfo->m_ThreadGroupSizeZ);
@@ -204,14 +718,14 @@ namespace DSM {
 
         for (int i = 0; ; ++i) {
             D3D12_SHADER_INPUT_BIND_DESC SIBDesc;
-            auto hr = shaderReflection->GetResourceBindingDesc(i, &SIBDesc);
+            auto hr = pReflection->GetResourceBindingDesc(i, &SIBDesc);
             if (FAILED(hr)) {
                 break;
             }
 
             // 读取常量缓冲区
             if (SIBDesc.Type == D3D_SIT_CBUFFER) {
-                GetConstantBufferInfo(shaderReflection.Get(), SIBDesc, shaderType, name);
+                GetConstantBufferInfo(pReflection.Get(), SIBDesc, shaderType, name);
             }
             else if (SIBDesc.Type == D3D_SIT_TEXTURE ||
                 SIBDesc.Type == D3D_SIT_TBUFFER ||
@@ -233,7 +747,18 @@ namespace DSM {
         }
     }
 
-    void ShaderHealper::Impl::GetConstantBufferInfo(
+    void ShaderHelper::Impl::Clear()
+    {
+        m_ConstantBuffers.clear();
+        m_ConstantBufferVariables.clear();
+        m_ShaderResources.clear();
+        m_ShaderInfo.clear();
+        m_ShaderPassByteCode.clear();
+        m_SamplerStates.clear();
+        m_RWResources.clear();
+    }
+
+    void ShaderHelper::Impl::GetConstantBufferInfo(
         ID3D12ShaderReflection* shaderReflection,
         const D3D12_SHADER_INPUT_BIND_DESC& bindDesc,
         ShaderType shaderType,
@@ -255,7 +780,7 @@ namespace DSM {
         
         // 判断该常量缓冲区是否是参数常量缓冲区
         if (noParams) {
-            // 不是参数CB
+            // 不是参数CB,则在PassHelper中创建
             if (auto it = m_ConstantBuffers.find(bindDesc.BindPoint); it == m_ConstantBuffers.end()) {
                 // 不存在则新建
                 m_ConstantBuffers.emplace(std::make_pair(bindDesc.BindPoint, std::move(constantBuffer)));
@@ -298,7 +823,7 @@ namespace DSM {
         }
     }
 
-    void ShaderHealper::Impl::GetShaderResourceInfo(
+    void ShaderHelper::Impl::GetShaderResourceInfo(
         const D3D12_SHADER_INPUT_BIND_DESC& bindDesc,
         ShaderType shaderType,
         const std::string& name)
@@ -311,13 +836,14 @@ namespace DSM {
             shaderResource.m_BindPoint = bindDesc.BindPoint;
             shaderResource.m_RegisterSpace = bindDesc.Space;
             shaderResource.m_Dimension = static_cast<D3D12_SRV_DIMENSION>( bindDesc.Dimension);
+            shaderResource.m_BindCount = bindDesc.BindCount;
             m_ShaderResources[bindDesc.BindPoint] = std::move(shaderResource);
         }
 
         m_ShaderInfo[infoName]->m_SrUseMasks[bindDesc.BindPoint / 32] |= (1 << (bindDesc.BindPoint % 32));
     }
 
-    void ShaderHealper::Impl::GetRWResourceInfo(
+    void ShaderHelper::Impl::GetRWResourceInfo(
         const D3D12_SHADER_INPUT_BIND_DESC& bindDesc,
         ShaderType shaderType,
         const std::string& name)
@@ -333,6 +859,7 @@ namespace DSM {
             rwResource.m_FirstInit = false;
             rwResource.m_EnableCounter = bindDesc.Type == D3D_SIT_UAV_RWSTRUCTURED_WITH_COUNTER;
             rwResource.m_InitialCount = 0;
+            rwResource.m_BindCount = bindDesc.BindCount;
             m_RWResources[bindDesc.BindPoint] = std::move(rwResource);
         }
 
@@ -346,7 +873,7 @@ namespace DSM {
         }
     }
 
-    void ShaderHealper::Impl::GetSamplerStateInfo(
+    void ShaderHelper::Impl::GetSamplerStateInfo(
         const D3D12_SHADER_INPUT_BIND_DESC& bindDesc,
         ShaderType shaderType,
         const std::string& name)
@@ -363,25 +890,202 @@ namespace DSM {
 
         m_ShaderInfo[infoName]->m_SsUseMask |= (1 << bindDesc.BindPoint);
     }
+#pragma endregion 
 
 
 
-    
-
-    ShaderHealper::ShaderHealper()
+    ShaderHelper::ShaderHelper()
         :m_Impl(std::make_unique<Impl>()){
     }
 
-    ShaderHealper::~ShaderHealper()
+    ShaderHelper::~ShaderHelper()
     {
     }
 
-    void ShaderHealper::SetFrameCount(std::uint32_t frameCount)
+    void ShaderHelper::SetFrameCount(std::uint32_t frameCount)
     {
         FrameCount = frameCount;
     }
 
-    void ShaderHealper::CreateShaderFormFile(const ShaderDesc& shaderDesc)
+    std::shared_ptr<IConstantBufferVariable> ShaderHelper::GetConstantBufferVariable(const std::string& name)
+    {
+        auto it = m_Impl->m_ConstantBufferVariables.find(name);
+        return it == m_Impl->m_ConstantBufferVariables.end() ? nullptr : it->second;
+    }
+
+    void ShaderHelper::AddShaderPass(
+        const std::string& shaderPassName,
+        const ShaderPassDesc& passDesc,
+        ID3D12Device* device)
+    {
+        assert(!shaderPassName.empty());
+
+        auto it = m_Impl->m_ShaderPass.find(shaderPassName);
+        // 防止重复添加
+        assert(it == m_Impl->m_ShaderPass.end());
+
+        auto shaderPass = std::make_shared<ShaderPass>(
+            this, shaderPassName,
+                m_Impl->m_ConstantBuffers, m_Impl->m_ShaderResources,
+                m_Impl->m_RWResources, m_Impl->m_SamplerStates);
+        m_Impl->m_ShaderPass[shaderPassName] = shaderPass;
+
+        // 加入着色器信息
+        auto getIndex = [](const auto& type) {
+            return static_cast<int>(type);
+        };
+        auto index = getIndex(ShaderType::VERTEX_SHADER);
+        shaderPass->m_ShaderInfos[index] = m_Impl->m_ShaderInfo[std::to_string(index) + passDesc.m_VSName];
+        index = getIndex(ShaderType::HULL_SHADER);
+        shaderPass->m_ShaderInfos[index] = m_Impl->m_ShaderInfo[std::to_string(index) + passDesc.m_HSName];
+        index = getIndex(ShaderType::DOMAIN_SHADER);
+        shaderPass->m_ShaderInfos[index] = m_Impl->m_ShaderInfo[std::to_string(index) + passDesc.m_DSName];
+        index = getIndex(ShaderType::GEOMETRY_SHADER);
+        shaderPass->m_ShaderInfos[index] = m_Impl->m_ShaderInfo[std::to_string(index) + passDesc.m_GSName];
+        index = getIndex(ShaderType::PIXEL_SHADER);
+        shaderPass->m_ShaderInfos[index] = m_Impl->m_ShaderInfo[std::to_string(index) + passDesc.m_PSName];
+        index = getIndex(ShaderType::COMPUTE_SHADER);
+        shaderPass->m_ShaderInfos[index] = m_Impl->m_ShaderInfo[std::to_string(index) + passDesc.m_CSName];
+    }
+
+    std::shared_ptr<IShaderPass> ShaderHelper::GetShaderPass(const std::string& passName)
+    {
+        if (auto it = m_Impl->m_ShaderPass.find(passName); it != m_Impl->m_ShaderPass.end()) {
+            return it->second;
+        }
+        return nullptr;
+    }
+
+    void ShaderHelper::CreateShaderFormFile(const ShaderDesc& shaderDesc)
+    {
+        auto shaderInfoName= std::to_string(static_cast<int>(shaderDesc.m_Type)) + shaderDesc.m_ShaderName;
+
+        std::shared_ptr<ShaderInfo> shaderInfo;
+        switch (shaderDesc.m_Type) {
+        case ShaderType::PIXEL_SHADER: {
+            shaderInfo = std::make_shared<PixelShaderInfo>();break;
+        }
+        case ShaderType::COMPUTE_SHADER: {
+            shaderInfo = std::make_shared<ComputeShaderInfo>();break;
+        }
+        default: {
+            shaderInfo = std::make_shared<ShaderInfo>();break;
+        }
+        }
+        m_Impl->m_ShaderInfo[shaderInfoName] = shaderInfo;
+        m_Impl->m_ShaderInfo[shaderInfoName]->m_Name = shaderDesc.m_ShaderName;
+
+        ComPtr<ID3DBlob> byteCode = nullptr;
+        if (byteCode = DXCCreateShaderFromFile(shaderDesc); byteCode == nullptr) {
+            byteCode =  D3DCompileCreateShaderFromFile(shaderDesc);
+        }
+
+        m_Impl->m_ShaderInfo[shaderInfoName]->m_pShader = byteCode;
+
+        m_Impl->m_ShaderPassByteCode[shaderDesc.m_FileName] = byteCode;
+    }
+
+    void ShaderHelper::Clear()
+    {
+        m_Impl->Clear();
+    }
+
+    ComPtr<ID3DBlob> ShaderHelper::DXCCreateShaderFromFile(const ShaderDesc& shaderDesc)
+    {
+        ComPtr<IDxcUtils> pUtils;
+        ComPtr<IDxcCompiler3> pCompiler;
+        ThrowIfFailed(DxcCreateInstance(CLSID_DxcUtils, IID_PPV_ARGS(&pUtils)));
+        ThrowIfFailed(DxcCreateInstance(CLSID_DxcCompiler, IID_PPV_ARGS(&pCompiler)));
+
+        ComPtr<IDxcIncludeHandler> pIncludeHandler;
+        ThrowIfFailed(pUtils->CreateDefaultIncludeHandler(&pIncludeHandler));
+
+        auto fileName = AnsiToWString(shaderDesc.m_FileName);
+        auto entryPoint = AnsiToWString(shaderDesc.m_EnterPoint);
+        auto pTarget = AnsiToWString(shaderDesc.m_Target);
+
+        auto defines = shaderDesc.m_Defines.GetShaderDefinesDxc();
+        ComPtr<IDxcCompilerArgs> pArgs;
+        ThrowIfFailed(pUtils->BuildArguments(
+            fileName.c_str(),
+            entryPoint.c_str(),
+            pTarget.c_str(),
+            nullptr, 0,
+            defines.data(),
+            defines.size(),
+            pArgs.GetAddressOf()));
+
+
+        ComPtr<IDxcBlobEncoding> pSource = nullptr;
+        ThrowIfFailed(pUtils->LoadFile(fileName.c_str(), nullptr, &pSource));
+        DxcBuffer Source;
+        Source.Ptr = pSource->GetBufferPointer();
+        Source.Size = pSource->GetBufferSize();
+        Source.Encoding = DXC_CP_ACP; // Assume BOM says UTF8 or UTF16 or this is ANSI text.
+        
+        //
+        // Compile it with specified arguments.
+        //
+        ComPtr<IDxcResult> pResults;
+        ThrowIfFailed(pCompiler->Compile(
+            &Source,                // Source buffer.
+            pArgs->GetArguments(),                // Array of pointers to arguments.
+            pArgs->GetCount(),      // Number of arguments.
+            pIncludeHandler.Get(),  // User-provided interface to handle #include directives (optional).
+            IID_PPV_ARGS(pResults.GetAddressOf()) // Compiler output status, buffer, and errors.
+        ));
+
+        //
+        // Print errors if present.
+        //
+        ComPtr<IDxcBlobUtf8> pErrors = nullptr;
+        ThrowIfFailed(pResults->GetOutput(DXC_OUT_ERRORS, IID_PPV_ARGS(&pErrors), nullptr));
+        // Note that d3dcompiler would return null if no errors or warnings are present.  
+        // IDxcCompiler3::Compile will always return an error buffer, but its length will be zero if there are no warnings or errors.
+        if (pErrors != nullptr && pErrors->GetStringLength() != 0) {
+            wprintf(L"Warnings and Errors:\n%S\n", pErrors->GetStringPointer());
+            return nullptr;
+        }
+
+        //
+        // Quit if the compilation failed.
+        //
+        HRESULT hrStatus;
+        ThrowIfFailed(pResults->GetStatus(&hrStatus));
+        if (FAILED(hrStatus)){
+            wprintf(L"Compilation Failed\n");
+            return nullptr;
+        }
+
+        //
+        // Save shader binary.
+        //
+        ComPtr<IDxcBlob> pShader = nullptr;
+        ComPtr<IDxcBlobUtf16> pShaderName = nullptr;
+        ThrowIfFailed(pResults->GetOutput(DXC_OUT_OBJECT, IID_PPV_ARGS(&pShader), &pShaderName));
+        
+        ComPtr< ID3D12ShaderReflection > pReflection;
+
+        ComPtr<IDxcBlob> pReflectionData;
+        ThrowIfFailed(pResults->GetOutput(DXC_OUT_REFLECTION, IID_PPV_ARGS(&pReflectionData), nullptr));
+        if (pReflectionData != nullptr) {
+            // Create reflection interface.
+            DxcBuffer ReflectionData;
+            ReflectionData.Encoding = DXC_CP_ACP;
+            ReflectionData.Ptr = pReflectionData->GetBufferPointer();
+            ReflectionData.Size = pReflectionData->GetBufferSize();
+
+            ThrowIfFailed(pUtils->CreateReflection(&ReflectionData, IID_PPV_ARGS(&pReflection)));
+        }
+        ComPtr<ID3DBlob> pByteCode = nullptr;
+        ThrowIfFailed(pShader->QueryInterface(IID_PPV_ARGS(pByteCode.GetAddressOf())));
+        
+        m_Impl->GetShaderInfo(shaderDesc.m_ShaderName, shaderDesc.m_Type, pReflection.Get());
+        
+        return pByteCode.Get();
+    }
+
+    ComPtr<ID3DBlob> ShaderHelper::D3DCompileCreateShaderFromFile(const ShaderDesc& shaderDesc)
     {
         ComPtr<ID3DBlob> byteCode = nullptr;
         ComPtr<ID3DBlob> errors = nullptr;
@@ -392,6 +1096,7 @@ namespace DSM {
         compilFlags |= D3DCOMPILE_SKIP_OPTIMIZATION;	// 跳过优化步骤
 #endif
 
+        
         auto hr = D3DCompileFromFile(
             AnsiToWString(shaderDesc.m_FileName).c_str(),
             shaderDesc.m_Defines.GetShaderDefines().data(),
@@ -412,26 +1117,17 @@ namespace DSM {
             ThrowIfFailed(D3DWriteBlobToFile(byteCode.Get(), AnsiToWString(shaderDesc.m_OutputFileName).c_str(), TRUE));
         }
 
-        m_Impl->m_ShaderPassByteCode[shaderDesc.m_FileName] = byteCode;
-        auto shaderInfoName= std::to_string(static_cast<int>(shaderDesc.m_Type)) + shaderDesc.m_ShaderName;
+        // 获取着色器反射
+        ComPtr<ID3D12ShaderReflection> shaderReflection;
+        ThrowIfFailed(D3DReflect(byteCode->GetBufferPointer(),
+            byteCode->GetBufferSize(),
+            IID_PPV_ARGS(shaderReflection.GetAddressOf())));
+        
+        m_Impl->GetShaderInfo(shaderDesc.m_ShaderName, shaderDesc.m_Type, shaderReflection.Get());
 
-        std::shared_ptr<ShaderInfo> shaderInfo;
-        switch (shaderDesc.m_Type) {
-            case ShaderType::PIXEL_SHADER: {
-                shaderInfo = std::make_shared<PixelShaderInfo>();break;
-            }
-            case ShaderType::COMPUTE_SHADER: {
-                shaderInfo = std::make_shared<ComputeShaderInfo>();break;
-            }
-            default: {
-                shaderInfo = std::make_shared<ShaderInfo>();break;
-            }
-        }
-        m_Impl->m_ShaderInfo[shaderInfoName] = shaderInfo;
-        m_Impl->m_ShaderInfo[shaderInfoName]->m_Name = shaderDesc.m_ShaderName;
-        m_Impl->m_ShaderInfo[shaderInfoName]->m_pShader = byteCode;
-
-        m_Impl->GetShaderInfo(shaderDesc.m_ShaderName, shaderDesc.m_Type, byteCode.Get());
+        return byteCode;
     }
+    
+#pragma endregion 
     
 }

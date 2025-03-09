@@ -68,7 +68,7 @@ namespace DSM {
     }
 
 
-    D3D12DescriptorHeap::D3D12DescriptorHeap(ID3D12Device* device)
+    D3D12DescriptorHeap::D3D12DescriptorHeap(ID3D12Device* device, std::uint32_t descriptorSize)
         :m_Device(device){
         assert(device != nullptr);
     }
@@ -144,6 +144,17 @@ namespace DSM {
         return dstHandle;
     }
 
+    D3D12DescriptorHandle D3D12DescriptorHeap::Allocate()
+    {
+        assert(HasValidSpace(1));
+
+        auto handle = m_NextFreeHandle;
+        m_NextFreeHandle += 1;
+        m_NumFreeDescriptors -= 1;
+
+        return handle;
+    }
+
     ID3D12DescriptorHeap* D3D12DescriptorHeap::GetHeap() const noexcept
     {
         return m_DescriptorHeap.Get();
@@ -173,9 +184,12 @@ namespace DSM {
     //
     D3D12DescriptorCache::D3D12DescriptorCache(ID3D12Device* device, std::uint32_t maxCount)
     {
+        assert(device != nullptr);
+        
         for (int i = 0; i < m_DescriptorHeaps.size(); ++i) {
             auto& heap = m_DescriptorHeaps[i];
-            heap = std::make_unique<D3D12DescriptorHeap>(device);
+            auto size = device->GetDescriptorHandleIncrementSize(static_cast<D3D12_DESCRIPTOR_HEAP_TYPE>(i));
+            heap = std::make_unique<D3D12DescriptorHeap>(device, size);
             auto heapType = static_cast<D3D12_DESCRIPTOR_HEAP_TYPE>(i);
             heap->Create(L"D3D12DescriptorCache" + AnsiToWString(typeid(heapType).name()), heapType, maxCount);
         }

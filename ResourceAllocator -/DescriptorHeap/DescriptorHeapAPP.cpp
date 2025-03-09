@@ -129,18 +129,6 @@ namespace DSM {
 
 		// 绘制不透明物体
 		RenderScene(RenderLayer::Opaque);
-		// 绘制镜子
-		m_CommandList->OMSetStencilRef(1);	// 将模板缓冲区中镜子的部分标记为1
-		m_CommandList->SetPipelineState(m_PSOs["MaskStencilMirrors"].Get());
-		RenderScene(RenderLayer::Mirror);
-		// 绘制镜子中的反射物体
-		m_CommandList->SetPipelineState(m_PSOs["Reflections"].Get());
-		RenderScene(RenderLayer::Reflection);
-		// 绘制透明物体
-		m_CommandList->OMSetStencilRef(0);
-		m_CommandList->SetPipelineState(m_PSOs["Transparent"].Get());
-		RenderScene(RenderLayer::Transparent);
-
 
 
 		ImguiManager::GetInstance().RenderImGui(m_CommandList.Get());
@@ -256,15 +244,25 @@ namespace DSM {
 				shaderDefines.AddDefine(name , vs);
 			}
 		}
-		ShaderHealper shaderHealper;
+		ShaderHelper shaderHelper;
 		ShaderDesc shaderDesc{};
 		shaderDesc.m_Defines = shaderDefines;
-		shaderDesc.m_Target = "ps_5_1";
+		shaderDesc.m_Target = "ps_6_1";
 		shaderDesc.m_EnterPoint = "PS";
 		shaderDesc.m_Type = ShaderType::PIXEL_SHADER;
 		shaderDesc.m_FileName = "Shaders\\Light.hlsl";
-		shaderDesc.m_ShaderName = "Lights";
-		shaderHealper.CreateShaderFormFile(shaderDesc);
+		shaderDesc.m_ShaderName = "LightsPS";
+		shaderHelper.CreateShaderFormFile(shaderDesc);
+		shaderDesc.m_EnterPoint = "VS";
+		shaderDesc.m_Type = ShaderType::VERTEX_SHADER;
+		shaderDesc.m_ShaderName = "LightsVS";
+		shaderDesc.m_Target = "vs_6_1";
+		shaderHelper.CreateShaderFormFile(shaderDesc);
+		ShaderPassDesc passDesc{};
+		passDesc.m_VSName = "LightsVS";
+		passDesc.m_PSName = "LightsPS";
+		shaderHelper.AddShaderPass("Light", passDesc, m_D3D12Device.Get());
+		
 		
 		shaderMacor.insert(--shaderMacor.end(), { "ALPHATEST", "1" });
 		auto lightAlphaTestPS = D3DUtil::CompileShader(L"Shaders\\Light.hlsl", shaderMacor.data(), "PS", "ps_5_1");

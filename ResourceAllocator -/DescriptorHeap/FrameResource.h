@@ -4,6 +4,7 @@
 
 #include "Pubh.h"
 #include "D3D12Allocatioin.h"
+#include "D3D12DescriptorHeap.h"
 
 namespace DSM {
 	class D3D12DescriptorCache;
@@ -40,6 +41,11 @@ namespace DSM {
 		std::unique_ptr<D3D12DefaultBufferAllocator> m_DefaultBufferAllocator;
 		std::unique_ptr<D3D12UploadBufferAllocator> m_UploadBufferAllocator;
 		std::unordered_map<std::string, std::shared_ptr<D3D12ResourceLocation>> m_Resources;
+
+		// 描述符缓冲区
+		std::unique_ptr<D3D12DescriptorCache> m_DescriptorCaches;
+		// 存放所有的描述符
+		std::unique_ptr<D3D12DescriptorCache> m_DescriptorHeaps;
 
 		UINT64 m_Fence = 0;													// 当前帧资源的围栏值
 

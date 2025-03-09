@@ -1,5 +1,4 @@
 #include "FrameResource.h"
-#include "D3D12DescriptorHeap.h"
 
 namespace DSM {
 	FrameResource::FrameResource(ID3D12Device* device)
@@ -11,6 +10,8 @@ namespace DSM {
 
 		m_DefaultBufferAllocator = std::make_unique<D3D12DefaultBufferAllocator>(m_Device.Get());
 		m_UploadBufferAllocator = std::make_unique<D3D12UploadBufferAllocator>(m_Device.Get());
+		m_DescriptorCaches = std::make_unique<D3D12DescriptorCache>(device);
+		m_DescriptorHeaps = std::make_unique<D3D12DescriptorCache>(device);
 	}
 
 	void FrameResource::AddConstantBuffer(
