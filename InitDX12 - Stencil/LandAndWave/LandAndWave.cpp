@@ -126,7 +126,7 @@ namespace DSM {
 				XMMATRIX invWorld = XMMatrixInverse(&detWorld, world);
 				ObjectConstants objectConstants;
 				XMStoreFloat4x4(&objectConstants.m_World, XMMatrixTranspose(world));
-				XMStoreFloat4x4(&objectConstants.m_WorldInvTranspos, XMMatrixTranspose(invWorld));
+				XMStoreFloat4x4(&objectConstants.m_WorldInvTranspose, XMMatrixTranspose(invWorld));
 				auto& currObjCB = m_CurrFrameResource->m_ConstantBuffers.find("ObjectConstants")->second;
 				currObjCB->Map();
 				currObjCB->m_IsDirty = true;

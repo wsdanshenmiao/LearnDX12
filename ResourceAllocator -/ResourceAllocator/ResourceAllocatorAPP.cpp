@@ -345,6 +345,7 @@ namespace DSM {
 				lightManager.GetLightBufferName());
 			objManager.CreateObjectsResource(resource.get(), sizeof(ObjectConstants), sizeof(MaterialConstants));
 		}
+
 	}
 
 	void ResourceAllocatorAPP::CreateDescriptorHeaps()
@@ -587,7 +588,7 @@ namespace DSM {
 			}
 
 			XMStoreFloat4x4(&ret.m_World, XMMatrixTranspose(world));
-			XMStoreFloat4x4(&ret.m_WorldInvTranspos, MathHelper::InverseTransposeWithOutTranslate(world));
+			XMStoreFloat4x4(&ret.m_WorldInvTranspose, MathHelper::InverseTransposeWithOutTranslate(world));
 
 			return ret;
 			};

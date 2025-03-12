@@ -10,7 +10,7 @@ namespace DSM {
 	struct ObjectConstants
 	{
 		DirectX::XMFLOAT4X4 m_World = MathHelper::Identity();
-		DirectX::XMFLOAT4X4 m_WorldInvTranspos = MathHelper::Identity();
+		DirectX::XMFLOAT4X4 m_WorldInvTranspose = MathHelper::Identity();
 	};
 
 	struct PassConstants

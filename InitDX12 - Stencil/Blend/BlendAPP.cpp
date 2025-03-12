@@ -566,7 +566,7 @@ namespace DSM {
 			auto world = scale * rotate * XMMatrixTranslationFromVector(pos);
 			
 			XMStoreFloat4x4(&ret.m_World, XMMatrixTranspose(world));
-			XMStoreFloat4x4(&ret.m_WorldInvTranspos, MathHelper::InverseTransposeWithOutTranslate(world));
+			XMStoreFloat4x4(&ret.m_WorldInvTranspose, MathHelper::InverseTransposeWithOutTranslate(world));
 
 			return ret;
 			};

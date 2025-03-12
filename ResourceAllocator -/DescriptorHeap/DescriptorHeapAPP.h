@@ -37,11 +37,9 @@ namespace DSM {
 		void UpdatePassCB(const CpuTimer& timer);
 		void UpdateObjCB(const CpuTimer& timer);
 
-		const std::array<const D3D12_STATIC_SAMPLER_DESC, 6> GetStaticSamplers() const noexcept;
-
 
 	public:
-		inline static constexpr UINT FrameCount = 5;
+		inline static constexpr UINT FrameCount = 3;
 
 
 	protected:

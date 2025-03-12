@@ -83,8 +83,7 @@ namespace DSM {
 
 		auto& cmdListAlloc = m_CurrFrameResource->m_CmdListAlloc;
 		ThrowIfFailed(cmdListAlloc->Reset());
-		auto& pso = imgui.m_EnableWireFrame ? m_PSOs["WireFrame"] : m_PSOs["Opaque"];
-		ThrowIfFailed(m_CommandList->Reset(cmdListAlloc.Get(), pso.Get()));
+		ThrowIfFailed(m_CommandList->Reset(cmdListAlloc.Get(), nullptr));
 
 		m_CommandList->RSSetViewports(1, &m_ScreenViewport);
 		m_CommandList->RSSetScissorRects(1, &m_ScissorRect);
@@ -160,6 +159,7 @@ namespace DSM {
 	void DescriptorHeapAPP::RenderScene(RenderLayer layer)
 	{
 		auto& objManager = ObjectManager::GetInstance();
+		auto& imgui = ImguiManager::GetInstance();
 		auto& modelManager = ModelManager::GetInstance();
 		auto& texManager = TextureManager::GetInstance();
 		auto& lightManager = LightManager::GetInstance();
@@ -184,8 +184,27 @@ namespace DSM {
 				auto objResource = constBuffers[name];
 				m_ShaderHelper.SetConstantBufferByName("ObjectConstants", objResource);
 
-				for (const auto& [name, drawItem] : meshData->m_DrawArgs) {
-					auto matIndex = model->GetMesh(name)->m_MaterialIndex;
+				auto getObjCB = [&imgui](const Object& obj, RenderLayer layer) {
+					ObjectConstants ret{};
+
+					auto& trans = obj.GetTransform();
+					auto scale = imgui.m_Transform.GetScaleMatrix() * trans.GetScaleMatrix();
+					auto rotate = imgui.m_Transform.GetRotateMatrix() * trans.GetRotateMatrix();
+					auto pos = imgui.m_Transform.GetTranslationMatrix() * trans.GetTranslationMatrix();
+					auto world = scale * rotate * pos;
+
+					XMStoreFloat4x4(&ret.m_World, XMMatrixTranspose(world));
+					XMStoreFloat4x4(&ret.m_WorldInvTranspose, MathHelper::InverseTransposeWithOutTranslate(world));
+
+					return ret;
+					};
+				auto objConstant = getObjCB(*obj, layer);
+				m_ShaderHelper.GetConstantBufferVariable("World")->SetMatrix(objConstant.m_World);
+				m_ShaderHelper.GetConstantBufferVariable("WorldInvTranspose")->SetMatrix(objConstant.m_WorldInvTranspose);
+
+
+				for (const auto& [itemName, drawItem] : meshData->m_DrawArgs) {
+					auto matIndex = model->GetMesh(itemName)->m_MaterialIndex;
 					const auto& mat = model->GetMaterial(matIndex);
 
 					auto diffuseTex = mat.Get<std::string>("Diffuse");
@@ -194,7 +213,42 @@ namespace DSM {
 					auto texResource = texManager.GetTextureResourceView(texName);
 					m_ShaderHelper.SetShaderResourceByName("gDiffuse", { texResource });
 
-					m_ShaderHelper.SetConstantBufferByName("MaterialConstants", objResource);
+					auto getMatCB = [](const Material& material) {
+						MaterialConstants ret{};
+						if (auto diffuse = material.Get<XMFLOAT3>("DiffuseColor"); diffuse != nullptr) {
+							ret.m_Diffuse = *diffuse;
+						}
+						if (auto specular = material.Get<XMFLOAT3>("SpecularColor"); specular != nullptr) {
+							ret.m_Specular = *specular;
+						}
+						if (auto ambient = material.Get<XMFLOAT3>("AmbientColor"); ambient != nullptr) {
+							ret.m_Ambient = *ambient;
+							float ambientScale = 0.08f;
+							ret.m_Ambient = XMFLOAT3{
+								ret.m_Ambient.x * ambientScale,
+								ret.m_Ambient.y * ambientScale,
+								ret.m_Ambient.z * ambientScale };
+						}
+						if (auto gloss = material.Get<float>("SpecularFactor"); gloss != nullptr) {
+							ret.m_Gloss = *gloss;
+						}
+						if (auto alpha = material.Get<float>("Opacity"); alpha != nullptr) {
+							ret.m_Alpha = *alpha;
+						}
+						return ret;
+						};
+					auto matResource = constBuffers[name + "Mat" + std::to_string(matIndex)];
+					m_ShaderHelper.SetConstantBufferByName("MaterialConstants", matResource);
+					auto matConstants = getMatCB(mat);
+					XMFLOAT4 tmp = { matConstants.m_Diffuse.x,matConstants.m_Diffuse.y,matConstants.m_Diffuse.z,1.0f };
+					m_ShaderHelper.GetConstantBufferVariable("Diffuse")->SetVector(tmp);
+					tmp = { matConstants.m_Specular.x,matConstants.m_Specular.y,matConstants.m_Specular.z,1.0f };
+					m_ShaderHelper.GetConstantBufferVariable("Specular")->SetVector(tmp);
+					tmp = { matConstants.m_Ambient.x,matConstants.m_Ambient.y,matConstants.m_Ambient.z,1.0f };
+					m_ShaderHelper.GetConstantBufferVariable("Ambient")->SetVector(tmp);
+					m_ShaderHelper.GetConstantBufferVariable("Alpha")->SetFloat(matConstants.m_Alpha);
+					m_ShaderHelper.GetConstantBufferVariable("Gloss")->SetFloat(matConstants.m_Gloss);
+
 
 					auto pass = m_ShaderHelper.GetShaderPass("Light");
 					auto inputLayout = VertexPosLNormalTex::GetInputLayout();
@@ -232,7 +286,7 @@ namespace DSM {
 		}
 		ShaderDesc shaderDesc{};
 		shaderDesc.m_Defines = shaderDefines;
-		shaderDesc.m_Target = "ps_6_1";
+		shaderDesc.m_Target = "ps_5_1";
 		shaderDesc.m_EnterPoint = "PS";
 		shaderDesc.m_Type = ShaderType::PIXEL_SHADER;
 		shaderDesc.m_FileName = "Shaders\\Light.hlsl";
@@ -241,7 +295,7 @@ namespace DSM {
 		shaderDesc.m_EnterPoint = "VS";
 		shaderDesc.m_Type = ShaderType::VERTEX_SHADER;
 		shaderDesc.m_ShaderName = "LightsVS";
-		shaderDesc.m_Target = "vs_6_1";
+		shaderDesc.m_Target = "vs_5_1";
 		m_ShaderHelper.CreateShaderFormFile(shaderDesc);
 		ShaderPassDesc passDesc{};
 		passDesc.m_VSName = "LightsVS";
@@ -429,7 +483,7 @@ namespace DSM {
 			}
 
 			XMStoreFloat4x4(&ret.m_World, XMMatrixTranspose(world));
-			XMStoreFloat4x4(&ret.m_WorldInvTranspos, MathHelper::InverseTransposeWithOutTranslate(world));
+			XMStoreFloat4x4(&ret.m_WorldInvTranspose, MathHelper::InverseTransposeWithOutTranslate(world));
 
 			return ret;
 			};

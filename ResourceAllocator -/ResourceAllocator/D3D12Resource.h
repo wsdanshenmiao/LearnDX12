@@ -19,7 +19,7 @@ namespace DSM {
 
 		Microsoft::WRL::ComPtr<ID3D12Resource> m_Resource = nullptr;
 		D3D12_RESOURCE_STATES m_ResourceState{};
-		D3D12_GPU_VIRTUAL_ADDRESS m_GpuVirtualAddress{};
+		D3D12_GPU_VIRTUAL_ADDRESS m_GPUVirtualAddress{};
 		// 上传堆使用
 		void* m_MappedBaseAddress = nullptr;
 	};

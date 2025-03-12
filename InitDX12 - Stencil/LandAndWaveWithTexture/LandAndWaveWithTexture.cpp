@@ -516,7 +516,7 @@ namespace DSM {
 			W.r[3] = g_XMIdentityR3;
 			XMMATRIX invWorld = XMMatrixInverse(&detWorld, W);
 			XMStoreFloat4x4(&ret.m_World, XMMatrixTranspose(world));
-			XMStoreFloat4x4(&ret.m_WorldInvTranspos, XMMatrixTranspose(invWorld));
+			XMStoreFloat4x4(&ret.m_WorldInvTranspose, XMMatrixTranspose(invWorld));
 
 			return ret;
 			};

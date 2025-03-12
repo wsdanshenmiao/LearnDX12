@@ -114,7 +114,7 @@ namespace DSM {
 
 		ObjectConstants objectConstants;
 		XMStoreFloat4x4(&objectConstants.m_World, XMMatrixTranspose(world));
-		XMStoreFloat4x4(&objectConstants.m_WorldInvTranspos, invWorld);
+		XMStoreFloat4x4(&objectConstants.m_WorldInvTranspose, invWorld);
 		auto& currObjCB = m_CurrFrameResource->m_ConstantBuffers.find("ObjectConstants")->second;
 		currObjCB->Map();
 		for (auto i = 0; i < GetMeshSize(); ++i) {

@@ -105,7 +105,7 @@ namespace DSM {
 
 			if (m_InitData.m_Strategy == AllocationStrategy::ManualSubAllocation) {
 				resourceLocation.m_UnderlyingResource = m_Resource.get();
-				resourceLocation.m_GPUVirtualAddress = m_Resource->m_GpuVirtualAddress + aligOffsetSize;
+				resourceLocation.m_GPUVirtualAddress = m_Resource->m_GPUVirtualAddress + aligOffsetSize;
 				resourceLocation.m_OffsetFromBaseOfResource = aligOffsetSize;
 				if (m_InitData.m_HeapType == D3D12_HEAP_TYPE_UPLOAD) {
 					resourceLocation.m_MappedBaseAddress = static_cast<char*>(m_Resource->m_MappedBaseAddress) + aligOffsetSize;
@@ -308,13 +308,13 @@ namespace DSM {
 	}
 
 	D3D12TextureAllocator::D3D12TextureAllocator(ID3D12Device* device)
-		:m_Device(device){
+		:m_Device(device) {
 		D3D12BuddyAllocator::AllocatorInitData initData{};
 		initData.m_HeapFlags = D3D12_HEAP_FLAG_ALLOW_ONLY_NON_RT_DS_TEXTURES;
 		initData.m_HeapType = D3D12_HEAP_TYPE_DEFAULT;
 		initData.m_ResourceFlags = D3D12_RESOURCE_FLAG_NONE;
 		initData.m_Strategy = D3D12BuddyAllocator::AllocationStrategy::PlacedResource;
-		
+
 		m_TextureAllocator = std::make_unique<D3D12MultiBuddyAllocator>(m_Device.Get(), initData);
 	}
 

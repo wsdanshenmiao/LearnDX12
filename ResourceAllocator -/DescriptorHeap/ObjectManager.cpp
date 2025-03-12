@@ -98,9 +98,10 @@ namespace DSM {
 				if (model == nullptr) continue;
 
 				// 创建常量缓冲区资源
-				auto byteSize = objCBByteSize + model->GetAllMaterial().size() * matCBByteSize;
-
-				frameResource->AddConstantBuffer(byteSize, 1, name);
+				frameResource->AddConstantBuffer(objCBByteSize, 1, name);
+				for (int i = 0; i < model->GetMaterialSize(); i++) {
+					frameResource->AddConstantBuffer(matCBByteSize, 1, name + "Mat" + std::to_string(i));
+				}
 			}
 		}
 	}

@@ -45,17 +45,16 @@ namespace DSM {
 	// 常量缓冲区
 	struct ConstantBuffer : ShaderParameter
 	{
-		std::uint32_t m_NumFrameDirty;
+		bool m_IsDrty;
 		std::vector<std::uint8_t> m_Data;
 		std::shared_ptr<D3D12ResourceLocation> m_Resource;
 
 		// 更新常量缓冲区
 		void UpdateBuffer()
 		{
-			if (m_NumFrameDirty > 0) {
+			if (m_IsDrty) {
 				assert(m_Resource != nullptr);
 				memcpy(m_Resource->m_MappedBaseAddress, m_Data.data(), m_Data.size());
-				m_NumFrameDirty--;
 			}
 		}
 	};
@@ -88,7 +87,7 @@ namespace DSM {
 			byteSize = min(byteSize, m_ByteSize);
 			memcpy(m_ConstantBuffer->m_Data.data() + m_StartOffset, data, byteSize);
 
-			m_ConstantBuffer->m_NumFrameDirty = ShaderHelper::FrameCount;
+			m_ConstantBuffer->m_IsDrty = true;
 		}
 
 		std::string m_Name;
@@ -493,7 +492,7 @@ namespace DSM {
 		auto& descriptorCache = frameResource->m_DescriptorCaches;
 		ID3D12DescriptorHeap* descriptorHeaps[] = { descriptorCache->GetHeap(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV) };
 		cmdList->SetDescriptorHeaps(1, descriptorHeaps);
-		
+
 		for (auto& [bindPoint, sr] : m_ShaderResources) {
 			auto handleSize = sr.m_Handle.size();
 			std::vector<D3D12_CPU_DESCRIPTOR_HANDLE> cpuHandles(handleSize);
@@ -526,7 +525,7 @@ namespace DSM {
 		//	auto gpuHandle = descriptorCache->AllocateAndCopy(D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER, cpuHandles);
 		//	cmdList->SetGraphicsRootDescriptorTable(m_SamplerBindSlot + i, gpuHandle);
 		//}
-		
+
 	}
 
 
@@ -538,16 +537,18 @@ namespace DSM {
 			m_CBVSignatureBindSlot = params.size();
 		}
 
+		params.resize(m_CBuffers.size() + m_ShaderResources.size() + m_RWResources.size());
+
 		for (const auto& [bindPoint, cb] : m_CBuffers) {
 			D3D12_ROOT_PARAMETER rootParameter{};
 			rootParameter.ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
 			rootParameter.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
 			rootParameter.Constants.ShaderRegister = cb.m_BindPoint;
 			rootParameter.Constants.RegisterSpace = cb.m_RegisterSpace;
-			params.push_back(std::move(rootParameter));
+			params[bindPoint] = std::move(rootParameter);
 		}
 
-		m_SRVSignatureBindSlot = params.size();
+		m_SRVSignatureBindSlot = m_CBVSignatureBindSlot + m_CBuffers.size();
 		for (const auto& [bindPoint, sr] : m_ShaderResources) {
 			D3D12_ROOT_PARAMETER rootParameter{};
 			D3D12_DESCRIPTOR_RANGE texTable{};
@@ -560,10 +561,10 @@ namespace DSM {
 			rootParameter.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
 			rootParameter.DescriptorTable.NumDescriptorRanges = 1;
 			rootParameter.DescriptorTable.pDescriptorRanges = &texTable;
-			params.push_back(std::move(rootParameter));
+			params[m_SRVSignatureBindSlot + bindPoint] = std::move(rootParameter);
 		}
 
-		m_UAVSignatureBindSlot = params.size();
+		m_UAVSignatureBindSlot = m_SRVSignatureBindSlot + m_ShaderResources.size();
 		for (const auto& [bindPoint, rw] : m_RWResources) {
 			D3D12_ROOT_PARAMETER rootParameter{};
 			D3D12_DESCRIPTOR_RANGE texTable{};
@@ -576,7 +577,7 @@ namespace DSM {
 			rootParameter.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
 			rootParameter.DescriptorTable.NumDescriptorRanges = 1;
 			rootParameter.DescriptorTable.pDescriptorRanges = &texTable;
-			params.push_back(std::move(rootParameter));
+			params[m_UAVSignatureBindSlot + bindPoint] = std::move(rootParameter);
 		}
 
 		auto staticSamplers = CreateStaticSamplers();
@@ -593,8 +594,8 @@ namespace DSM {
 		// 序列化根签名
 		auto hr = D3D12SerializeRootSignature(&signatureDesc,
 			D3D_ROOT_SIGNATURE_VERSION_1,
-			&errorBlob,
-			&serializedBlob);
+			serializedBlob.GetAddressOf(),
+			errorBlob.GetAddressOf());
 		ThrowIfFailed(hr);
 
 		if (errorBlob != nullptr) {
@@ -603,8 +604,8 @@ namespace DSM {
 
 		// 创建根签名
 		ThrowIfFailed(device->CreateRootSignature(0,
-			errorBlob->GetBufferPointer(),
-			errorBlob->GetBufferSize(),
+			serializedBlob->GetBufferPointer(),
+			serializedBlob->GetBufferSize(),
 			IID_PPV_ARGS(m_pRootSignature.GetAddressOf())));
 	}
 

@@ -5,7 +5,7 @@
 cbuffer ObjectConstants : register(b0)
 {
     float4x4 World;
-    float4x4 WorldInvTranspos;
+    float4x4 WorldInvTranspose;
 }
 
 cbuffer gPassCB : register(b1)
@@ -61,7 +61,7 @@ VertexPosWHNormalWTex VS(VertexPosLNormalLTex v)
     float4 posW = mul(float4(v.PosL, 1), World);
     o.PosH = mul(posW, viewProj);
     o.PosW = posW.xyz;
-    o.NormalW = mul(float4(v.NormalL, 1), WorldInvTranspos).xyz;
+    o.NormalW = mul(float4(v.NormalL, 1), WorldInvTranspose).xyz;
     o.TexCoord = v.TexCoord;
     return o;
 }
