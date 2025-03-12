@@ -30,7 +30,7 @@ namespace DSM {
 		D3D12DescriptorHandle GetTextureResourceView(const std::string& texName) const;
 		ID3D12DescriptorHeap* GetDescriptorHeap() const;
 
-		void CreateTexDescriptor(FrameResource* frameResource);
+		void CreateTexDescriptor(FrameResource* resource);
 
 	protected:
 		friend class Singleton<TextureManager>;

@@ -491,9 +491,9 @@ namespace DSM {
 
 		// 绑定着色器资源
 		auto& descriptorCache = frameResource->m_DescriptorCaches;
-		auto heap = frameResource->m_DescriptorHeaps->GetHeap(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-		cmdList->SetDescriptorHeaps(1, &heap);
-
+		ID3D12DescriptorHeap* descriptorHeaps[] = { descriptorCache->GetHeap(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV) };
+		cmdList->SetDescriptorHeaps(1, descriptorHeaps);
+		
 		for (auto& [bindPoint, sr] : m_ShaderResources) {
 			auto handleSize = sr.m_Handle.size();
 			std::vector<D3D12_CPU_DESCRIPTOR_HANDLE> cpuHandles(handleSize);
@@ -526,6 +526,7 @@ namespace DSM {
 		//	auto gpuHandle = descriptorCache->AllocateAndCopy(D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER, cpuHandles);
 		//	cmdList->SetGraphicsRootDescriptorTable(m_SamplerBindSlot + i, gpuHandle);
 		//}
+		
 	}
 
 

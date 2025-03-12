@@ -181,8 +181,8 @@ namespace DSM {
 				m_CommandList->IASetVertexBuffers(0, 1, &vertexBV);
 				m_CommandList->IASetIndexBuffer(&indexBV);
 
-				auto objHandle = constBuffers[name];
-				m_ShaderHelper.SetConstantBufferByName("ObjectConstants", objHandle);
+				auto objResource = constBuffers[name];
+				m_ShaderHelper.SetConstantBufferByName("ObjectConstants", objResource);
 
 				for (const auto& [name, drawItem] : meshData->m_DrawArgs) {
 					auto matIndex = model->GetMesh(name)->m_MaterialIndex;
@@ -191,10 +191,10 @@ namespace DSM {
 					auto diffuseTex = mat.Get<std::string>("Diffuse");
 					std::string texName = diffuseTex == nullptr ? "" : *diffuseTex;
 
-					auto texHandle = texManager.GetTextureResourceView("");
-					m_ShaderHelper.SetShaderResourceByName("gDiffuse", { texHandle });
+					auto texResource = texManager.GetTextureResourceView(texName);
+					m_ShaderHelper.SetShaderResourceByName("gDiffuse", { texResource });
 
-					m_ShaderHelper.SetConstantBufferByName("MaterialConstants", objHandle);
+					m_ShaderHelper.SetConstantBufferByName("MaterialConstants", objResource);
 
 					auto pass = m_ShaderHelper.GetShaderPass("Light");
 					auto inputLayout = VertexPosLNormalTex::GetInputLayout();
