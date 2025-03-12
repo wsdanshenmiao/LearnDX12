@@ -9,7 +9,7 @@
 namespace DSM {
 	class D3D12DescriptorCache;
 
-	
+
 	// 帧资源
 	struct FrameResource
 	{
@@ -30,7 +30,7 @@ namespace DSM {
 			const std::string& bufferName);
 
 		void ClearUp(std::uint64_t fenceValue);
-	
+
 
 		template <class T>
 		using ComPtr = Microsoft::WRL::ComPtr<T>;

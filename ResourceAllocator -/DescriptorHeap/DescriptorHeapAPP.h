@@ -33,8 +33,6 @@ namespace DSM {
 		void CreateLights();
 		void CreateFrameResource();
 		void CreateDescriptorHeaps();
-		void CreateRootSignature();
-		void CreatePSOs();
 
 		void UpdatePassCB(const CpuTimer& timer);
 		void UpdateObjCB(const CpuTimer& timer);

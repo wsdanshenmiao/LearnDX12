@@ -73,7 +73,6 @@ namespace DSM {
 		dirLight.m_Color = imgui.m_LightColor;
 		lightManager.SetDirLight(0, dirLight);
 		lightManager.UpdateLight(m_CurrFrameResource);
-		UpdateObjCB(timer);
 	}
 
 	void DescriptorHeapAPP::OnRender(const CpuTimer& timer)
@@ -111,7 +110,7 @@ namespace DSM {
 
 		m_CommandList->OMSetRenderTargets(1, &currBackBV, true, &dsv);
 
-		
+
 		// 绘制不透明物体
 		RenderScene(RenderLayer::Opaque);
 
@@ -163,11 +162,11 @@ namespace DSM {
 		auto& objManager = ObjectManager::GetInstance();
 		auto& modelManager = ModelManager::GetInstance();
 		auto& texManager = TextureManager::GetInstance();
-		auto&lightManager = LightManager::GetInstance();
+		auto& lightManager = LightManager::GetInstance();
 
 		auto objCBSize = D3DUtil::CalcCBByteSize(sizeof(ObjectConstants));
 		auto matCBSize = D3DUtil::CalcCBByteSize(sizeof(MaterialConstants));
-		
+
 		auto& constBuffers = m_CurrFrameResource->m_Resources;
 		auto passConstants = constBuffers.find(typeid(PassConstants).name());
 		m_ShaderHelper.SetConstantBufferByName("gPassCB", passConstants->second);
@@ -182,25 +181,26 @@ namespace DSM {
 				m_CommandList->IASetVertexBuffers(0, 1, &vertexBV);
 				m_CommandList->IASetIndexBuffer(&indexBV);
 
-				auto objHandle = m_CurrFrameResource->m_Resources[name];
+				auto objHandle = constBuffers[name];
 				m_ShaderHelper.SetConstantBufferByName("ObjectConstants", objHandle);
-				
+
 				for (const auto& [name, drawItem] : meshData->m_DrawArgs) {
 					auto matIndex = model->GetMesh(name)->m_MaterialIndex;
 					const auto& mat = model->GetMaterial(matIndex);
 
 					auto diffuseTex = mat.Get<std::string>("Diffuse");
 					std::string texName = diffuseTex == nullptr ? "" : *diffuseTex;
-					auto handle = texManager.GetTextureResourceView(texName);
-					m_ShaderHelper.SetShaderResourceByName("gDiffuse", {handle});
-					
+
+					auto texHandle = texManager.GetTextureResourceView("");
+					m_ShaderHelper.SetShaderResourceByName("gDiffuse", { texHandle });
+
 					m_ShaderHelper.SetConstantBufferByName("MaterialConstants", objHandle);
-					
+
 					auto pass = m_ShaderHelper.GetShaderPass("Light");
 					auto inputLayout = VertexPosLNormalTex::GetInputLayout();
-					pass->SetInputLayout({inputLayout.data(), inputLayout.size()});
+					pass->SetInputLayout({ inputLayout.data(), inputLayout.size() });
 					pass->Apply(m_CommandList.Get(), m_D3D12Device.Get(), m_CurrFrameResource);
-					
+
 					m_CommandList->DrawIndexedInstanced(drawItem.m_IndexCount, 1, drawItem.m_StarIndexLocation, drawItem.m_BaseVertexLocation, 0);
 				}
 			}
@@ -215,8 +215,6 @@ namespace DSM {
 		CreateLights();
 		CreateFrameResource();
 		CreateDescriptorHeaps();
-		CreateRootSignature();
-		CreatePSOs();
 
 		return true;
 	}
@@ -226,18 +224,10 @@ namespace DSM {
 		auto shaderMacor = LightManager::GetInstance().GetLightsShaderMacros(
 			"MAXDIRLIGHTCOUNT", "MAXPOINTLIGHTCOUNT", "MAXSPOTLIGHTCOUNT");
 
-		shaderMacor.push_back({ "ENABLEFOG", "1" });
-		shaderMacor.push_back({ nullptr, nullptr });	// 充当结束标志
-
-		auto colorVS = D3DUtil::CompileShader(L"Shaders\\Color.hlsl", shaderMacor.data(), "VS", "vs_5_1");
-		auto colorPS = D3DUtil::CompileShader(L"Shaders\\Color.hlsl", shaderMacor.data(), "PS", "ps_5_1");
-		auto lightVS = D3DUtil::CompileShader(L"Shaders\\Light.hlsl", shaderMacor.data(), "VS", "vs_5_1");
-		auto lightPS = D3DUtil::CompileShader(L"Shaders\\Light.hlsl", shaderMacor.data(), "PS", "ps_5_1");
-
 		ShaderDefines shaderDefines;
 		for (const auto& [name, vs] : shaderMacor) {
 			if (name != nullptr) {
-				shaderDefines.AddDefine(name , vs);
+				shaderDefines.AddDefine(name, vs);
 			}
 		}
 		ShaderDesc shaderDesc{};
@@ -257,16 +247,6 @@ namespace DSM {
 		passDesc.m_VSName = "LightsVS";
 		passDesc.m_PSName = "LightsPS";
 		m_ShaderHelper.AddShaderPass("Light", passDesc, m_D3D12Device.Get());
-		
-		
-		shaderMacor.insert(--shaderMacor.end(), { "ALPHATEST", "1" });
-		auto lightAlphaTestPS = D3DUtil::CompileShader(L"Shaders\\Light.hlsl", shaderMacor.data(), "PS", "ps_5_1");
-
-		m_ShaderByteCode.insert(std::make_pair("ColorVS", colorVS));
-		m_ShaderByteCode.insert(std::make_pair("ColorPS", colorPS));
-		m_ShaderByteCode.insert(std::make_pair("LightVS", lightVS));
-		m_ShaderByteCode.insert(std::make_pair("LightPS", lightPS));
-		m_ShaderByteCode.insert(std::make_pair("LightAlphaTestPS", lightAlphaTestPS));
 	}
 
 	/// <summary>
@@ -277,14 +257,14 @@ namespace DSM {
 		auto& modelManager = ModelManager::GetInstance();
 		auto& objManager = ObjectManager::GetInstance();
 
-		const Model* sponzaModel = modelManager.LoadModelFromeFile(
+		/*const Model* sponzaModel = modelManager.LoadModelFromeFile(
 			"Sponza",
 			"Models\\Sponza\\Sponza.gltf",
 			m_CommandList.Get());
 		auto sponza = std::make_shared<Object>(sponzaModel->GetName(), sponzaModel);
 		sponza->GetTransform().SetScale({ 0.2,0.2,0.2 });
 		sponza->GetTransform().SetRotation(0, MathHelper::PI / 2, 0);
-		objManager.AddObject(sponza, RenderLayer::Opaque);
+		objManager.AddObject(sponza, RenderLayer::Opaque);*/
 
 		// 创建模型及物体
 		const Model* elenaModel = modelManager.LoadModelFromeFile(
@@ -371,163 +351,6 @@ namespace DSM {
 	}
 
 
-	void DescriptorHeapAPP::CreateRootSignature()
-	{
-		// 初始化根参数，使用根描述符和根描述符表
-		auto count = 4;
-		std::vector<D3D12_ROOT_PARAMETER> rootParamer(count + 1);
-		for (int i = 0; i < count; ++i) {
-			rootParamer[i].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
-			rootParamer[i].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
-			// 对应的寄存器槽
-			rootParamer[i].Constants.ShaderRegister = i;
-			rootParamer[i].Constants.RegisterSpace = 0;
-		}
-
-		D3D12_DESCRIPTOR_RANGE texTable{};
-		texTable.NumDescriptors = 1;
-		texTable.BaseShaderRegister = 0;
-		texTable.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
-		texTable.RegisterSpace = 0;
-		texTable.OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
-		rootParamer[count].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
-		rootParamer[count].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
-		rootParamer[count].DescriptorTable.NumDescriptorRanges = 1;
-		rootParamer[count].DescriptorTable.pDescriptorRanges = &texTable;
-
-		auto staticSamplers = GetStaticSamplers();
-		D3D12_ROOT_SIGNATURE_DESC signatureDesc{};
-		signatureDesc.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
-		signatureDesc.NumParameters = rootParamer.size();
-		signatureDesc.pParameters = rootParamer.data();
-		signatureDesc.NumStaticSamplers = (UINT)staticSamplers.size();
-		signatureDesc.pStaticSamplers = staticSamplers.data();
-
-		ComPtr<ID3DBlob> errorBlob;
-		ComPtr<ID3DBlob> serializedBlob;
-
-		// 序列化根签名
-		auto hr = D3D12SerializeRootSignature(&signatureDesc,
-			D3D_ROOT_SIGNATURE_VERSION_1,
-			&errorBlob,
-			&serializedBlob);
-		ThrowIfFailed(hr);
-
-		if (errorBlob != nullptr)
-		{
-			OutputDebugStringA((char*)errorBlob->GetBufferPointer());
-		}
-
-		// 创建根签名
-		ThrowIfFailed(m_D3D12Device->CreateRootSignature(0,
-			errorBlob->GetBufferPointer(),
-			errorBlob->GetBufferSize(),
-			IID_PPV_ARGS(m_RootSignature.GetAddressOf())));
-	}
-
-	void DescriptorHeapAPP::CreatePSOs()
-	{
-		D3D12_BLEND_DESC blendDesc{};
-		blendDesc.AlphaToCoverageEnable = false;
-		blendDesc.IndependentBlendEnable = false;
-		blendDesc.RenderTarget[0].BlendEnable = false;
-		blendDesc.RenderTarget[0].LogicOpEnable = false;
-		blendDesc.RenderTarget[0].SrcBlend = D3D12_BLEND_ONE;
-		blendDesc.RenderTarget[0].DestBlend = D3D12_BLEND_ZERO;
-		blendDesc.RenderTarget[0].BlendOp = D3D12_BLEND_OP_ADD;
-		blendDesc.RenderTarget[0].SrcBlendAlpha = D3D12_BLEND_ONE;
-		blendDesc.RenderTarget[0].DestBlendAlpha = D3D12_BLEND_ZERO;
-		blendDesc.RenderTarget[0].BlendOpAlpha = D3D12_BLEND_OP_ADD;
-		blendDesc.RenderTarget[0].LogicOp = D3D12_LOGIC_OP_NOOP;
-		blendDesc.RenderTarget[0].RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;
-
-		D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc{};
-		ZeroMemory(&psoDesc, sizeof(D3D12_GRAPHICS_PIPELINE_STATE_DESC));
-		psoDesc.pRootSignature = m_RootSignature.Get();
-		psoDesc.VS = {
-			m_ShaderByteCode["LightVS"]->GetBufferPointer(),
-			m_ShaderByteCode["LightVS"]->GetBufferSize()
-		};
-		psoDesc.PS = {
-			m_ShaderByteCode["LightPS"]->GetBufferPointer(),
-			m_ShaderByteCode["LightPS"]->GetBufferSize()
-		};
-		psoDesc.SampleMask = UINT_MAX;
-		psoDesc.BlendState = blendDesc;
-		psoDesc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
-		psoDesc.DepthStencilState = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
-		psoDesc.InputLayout = {
-			VertexPosLNormalTex::GetInputLayout().data(),
-			(UINT)VertexPosLNormalTex::GetInputLayout().size()
-		};
-		psoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
-		psoDesc.NumRenderTargets = 1;
-		psoDesc.RTVFormats[0] = m_BackBufferFormat;
-		psoDesc.SampleDesc.Count = 1;
-		psoDesc.SampleDesc.Quality = 0;
-		psoDesc.DSVFormat = m_DepthStencilFormat;
-
-		// 不透明物体
-		ThrowIfFailed(m_D3D12Device->CreateGraphicsPipelineState(
-			&psoDesc, IID_PPV_ARGS(m_PSOs["Opaque"].GetAddressOf())));
-
-		// 线框模式
-		auto wirePso = psoDesc;
-		wirePso.RasterizerState.FillMode = D3D12_FILL_MODE_WIREFRAME;
-		ThrowIfFailed(m_D3D12Device->CreateGraphicsPipelineState(
-			&wirePso, IID_PPV_ARGS(m_PSOs["WireFrame"].GetAddressOf())));
-
-		// 透明物体
-		auto transparentPso = psoDesc;
-		transparentPso.BlendState.RenderTarget[0].BlendEnable = true;
-		transparentPso.BlendState.RenderTarget[0].SrcBlend = D3D12_BLEND_SRC_ALPHA;
-		transparentPso.BlendState.RenderTarget[0].DestBlend = D3D12_BLEND_INV_SRC_ALPHA;
-		ThrowIfFailed(m_D3D12Device->CreateGraphicsPipelineState(
-			&transparentPso, IID_PPV_ARGS(m_PSOs["Transparent"].GetAddressOf())));
-
-		// 开启Alpha测试
-		auto alphaTestPso = psoDesc;
-		alphaTestPso.PS = { m_ShaderByteCode["LightAlphaTestPS"]->GetBufferPointer(),
-		m_ShaderByteCode["LightAlphaTestPS"]->GetBufferSize()
-		};
-		alphaTestPso.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
-		ThrowIfFailed(m_D3D12Device->CreateGraphicsPipelineState(
-			&alphaTestPso, IID_PPV_ARGS(m_PSOs["AlphaTest"].GetAddressOf())));
-
-		// 关闭后台缓冲区的渲染并开启写入深度模板
-		D3D12_DEPTH_STENCIL_DESC mirrorDepthStencilDesc{};
-		mirrorDepthStencilDesc.DepthEnable = true;
-		mirrorDepthStencilDesc.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ZERO;	// 关闭深度写入
-		mirrorDepthStencilDesc.DepthFunc = D3D12_COMPARISON_FUNC_LESS;
-		mirrorDepthStencilDesc.StencilEnable = true;
-		mirrorDepthStencilDesc.StencilWriteMask = D3D12_DEFAULT_STENCIL_WRITE_MASK;
-		mirrorDepthStencilDesc.StencilReadMask = D3D12_DEFAULT_STENCIL_READ_MASK;
-		mirrorDepthStencilDesc.FrontFace.StencilFailOp = D3D12_STENCIL_OP_KEEP;
-		mirrorDepthStencilDesc.FrontFace.StencilDepthFailOp = D3D12_STENCIL_OP_KEEP;
-		mirrorDepthStencilDesc.FrontFace.StencilPassOp = D3D12_STENCIL_OP_REPLACE;	// 若通过了模板测试则替换为设定的值
-		mirrorDepthStencilDesc.FrontFace.StencilFunc = D3D12_COMPARISON_FUNC_ALWAYS;
-		mirrorDepthStencilDesc.BackFace = mirrorDepthStencilDesc.FrontFace;	// 背后不绘制无所谓
-		auto maskStencilMirrorsPso = psoDesc;
-		maskStencilMirrorsPso.BlendState.RenderTarget[0].RenderTargetWriteMask = 0;
-		maskStencilMirrorsPso.DepthStencilState = mirrorDepthStencilDesc;
-		ThrowIfFailed(m_D3D12Device->CreateGraphicsPipelineState(
-			&maskStencilMirrorsPso, IID_PPV_ARGS(m_PSOs["MaskStencilMirrors"].GetAddressOf())));
-
-		// 绘制反射的物体
-		auto reflectionDepthStencilDesc = mirrorDepthStencilDesc;
-		reflectionDepthStencilDesc.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ALL;
-		reflectionDepthStencilDesc.FrontFace.StencilPassOp = D3D12_STENCIL_OP_KEEP;
-		reflectionDepthStencilDesc.FrontFace.StencilFunc = D3D12_COMPARISON_FUNC_EQUAL;
-		reflectionDepthStencilDesc.BackFace = reflectionDepthStencilDesc.FrontFace;
-		auto reflectionPso = psoDesc;
-		reflectionPso.DepthStencilState = reflectionDepthStencilDesc;
-		reflectionPso.RasterizerState.FrontCounterClockwise = true;	// 由于是镜面中的物体，法线会反向，因此绘制逆时针的三角形
-		ThrowIfFailed(m_D3D12Device->CreateGraphicsPipelineState(
-			&reflectionPso, IID_PPV_ARGS(m_PSOs["Reflections"].GetAddressOf())));
-
-
-	}
-
 	void DescriptorHeapAPP::UpdatePassCB(const CpuTimer& timer)
 	{
 		auto& imgui = ImguiManager::GetInstance();
@@ -560,9 +383,12 @@ namespace DSM {
 		passConstants.m_FogStart = imgui.m_FogStart;
 		passConstants.m_FogRange = imgui.m_FogRange;
 
-		auto currPassCB = m_CurrFrameResource->m_Resources[typeid(PassConstants).name()];
-		auto byteSize = D3DUtil::CalcCBByteSize(sizeof(PassConstants));
-		memcpy(currPassCB->m_MappedBaseAddress, &passConstants, byteSize);
+		m_ShaderHelper.GetConstantBufferVariable("View")->SetMatrix(passConstants.m_View);
+		m_ShaderHelper.GetConstantBufferVariable("InvView")->SetMatrix(passConstants.m_InvView);
+		m_ShaderHelper.GetConstantBufferVariable("Proj")->SetMatrix(passConstants.m_Proj);
+		m_ShaderHelper.GetConstantBufferVariable("InvProj")->SetMatrix(passConstants.m_InvProj);
+		XMFLOAT4 eyePos = { passConstants.m_EyePosW.x ,passConstants.m_EyePosW.y, passConstants.m_EyePosW.z, 1 };
+		m_ShaderHelper.GetConstantBufferVariable("EyePosW")->SetVector(eyePos);
 	}
 
 	void DescriptorHeapAPP::UpdateObjCB(const CpuTimer& timer)
@@ -632,51 +458,7 @@ namespace DSM {
 			return ret;
 			};
 
-		objManager.UpdateObjectsCB(m_CurrFrameResource, getObjCB, getMatCB);
-	}
-
-	const std::array<const D3D12_STATIC_SAMPLER_DESC, 6> DescriptorHeapAPP::GetStaticSamplers() const noexcept
-	{
-		// 创建六种静态采样器
-		D3D12_STATIC_SAMPLER_DESC staticSampler{};
-		staticSampler.Filter = D3D12_FILTER_MIN_MAG_MIP_POINT;
-		staticSampler.AddressU = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
-		staticSampler.AddressV = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
-		staticSampler.AddressW = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
-		staticSampler.MipLODBias = 0;
-		staticSampler.MaxAnisotropy = 16;
-		staticSampler.ComparisonFunc = D3D12_COMPARISON_FUNC_ALWAYS;
-		staticSampler.MaxLOD = D3D12_FLOAT32_MAX;
-		staticSampler.MinLOD = 0;
-		staticSampler.RegisterSpace = 0;
-		staticSampler.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
-		staticSampler.ShaderRegister = 0;
-
-		const auto pointWarp = staticSampler;
-
-		staticSampler.ShaderRegister = 1;
-		staticSampler.Filter = D3D12_FILTER_MIN_MAG_MIP_LINEAR;
-		const auto linearWarp = staticSampler;
-
-		staticSampler.ShaderRegister = 2;
-		staticSampler.Filter = D3D12_FILTER_ANISOTROPIC;
-		const auto anisotropicWarp = staticSampler;
-
-		staticSampler.ShaderRegister = 5;
-		staticSampler.AddressU = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
-		staticSampler.AddressV = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
-		staticSampler.AddressW = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
-		const auto anisotropicClamp = staticSampler;
-
-		staticSampler.ShaderRegister = 4;
-		staticSampler.Filter = D3D12_FILTER_MIN_MAG_MIP_LINEAR;
-		const auto linearClamp = staticSampler;
-
-		staticSampler.ShaderRegister = 3;
-		staticSampler.Filter = D3D12_FILTER_MIN_MAG_MIP_POINT;
-		const auto pointClamp = staticSampler;
-
-		return { pointWarp, linearWarp, anisotropicWarp, pointClamp, linearClamp, anisotropicClamp };
+		//objManager.UpdateObjectsCB(m_CurrFrameResource, getObjCB, getMatCB);
 	}
 
 
