@@ -769,7 +769,7 @@ namespace DSM {
 		ID3D12ShaderReflectionConstantBuffer* CBReflection = shaderReflection->GetConstantBufferByName(bindDesc.Name);
 		D3D12_SHADER_BUFFER_DESC CBDesc;
 		ThrowIfFailed(CBReflection->GetDesc(&CBDesc));
-
+		
 		auto infoName = std::to_string(static_cast<int>(shaderType)) + name;
 		auto& shaderInfo = m_ShaderInfo;
 
@@ -800,28 +800,81 @@ namespace DSM {
 			shaderInfo[infoName]->m_pParamData = std::make_unique<ConstantBuffer>(std::move(constantBuffer));
 		}
 
-		// 获取常量缓冲区中的所有变量
-		for (std::uint32_t i = 0; i < CBDesc.Variables; i++) {
-			ID3D12ShaderReflectionVariable* pSRVar = CBReflection->GetVariableByIndex(i);
-			D3D12_SHADER_VARIABLE_DESC varDesc;
-			ThrowIfFailed(pSRVar->GetDesc(&varDesc));
+		if (CBDesc.Variables < 1)return;
 
+		ID3D12ShaderReflectionVariable* pSRVar = CBReflection->GetVariableByIndex(0);
+		
+		D3D12_SHADER_TYPE_DESC typeDesc;
+		ID3D12ShaderReflectionType* reflectionType = pSRVar->GetType();
+		ThrowIfFailed(reflectionType->GetDesc(&typeDesc));
+		// 检测缓冲区的类型是否为结构体
+		bool isStruct = typeDesc.Class == D3D_SVC_STRUCT;
+		
+		// 获取常量缓冲区中的所有变量
+		std::uint32_t preOffset = 0;
+		std::uint32_t numVar = isStruct ? typeDesc.Members : CBDesc.Variables;
+		// 用来记录各个变量的大小
+		std::queue<std::pair<std::string, std::uint32_t>> sizeQueue;
+		for (std::uint32_t i = 0; i < numVar; i++) {
+			// 获取变量信息
+			D3D12_SHADER_VARIABLE_DESC varDesc;
+			
+			std::uint32_t varSize =0;
+			std::uint32_t varOffset = 0;
+			std::string varName{};
+			
+			// 处理两种语法导致反射的结果不同
+			if (isStruct) {
+				ID3D12ShaderReflectionType* memberType = reflectionType->GetMemberTypeByIndex(i);
+				auto memberName = reflectionType->GetMemberTypeName(i);
+				D3D12_SHADER_TYPE_DESC memberTypeDesc;
+				ThrowIfFailed(memberType->GetDesc(&memberTypeDesc));
+
+				varName = memberName;
+				varSize = 0;
+				varOffset = memberTypeDesc.Offset;
+				// 当前变量的名字和前一个变量的大小
+				sizeQueue.push({varName, varOffset - preOffset});
+				preOffset = varOffset;
+			}
+			else {
+				pSRVar = CBReflection->GetVariableByIndex(i);
+				ThrowIfFailed(pSRVar->GetDesc(&varDesc));
+				varName = varDesc.Name;
+				varSize = varDesc.Size;
+				varOffset = varDesc.StartOffset;
+			}
+
+			// 创建常量缓冲区成员变量
 			auto CBVariable = std::make_shared<ConstantBufferVariable>();
-			CBVariable->m_Name = varDesc.Name;
-			CBVariable->m_ByteSize = varDesc.Size;
-			CBVariable->m_StartOffset = varDesc.StartOffset;
+			CBVariable->m_Name = varName;
+			CBVariable->m_ByteSize = varSize;
+			CBVariable->m_StartOffset = varOffset;
 			if (noParams) {
 				CBVariable->m_ConstantBuffer = &m_ConstantBuffers[bindDesc.BindPoint];
-				m_ConstantBufferVariables[varDesc.Name] = CBVariable;
-				if (varDesc.DefaultValue != nullptr) { // 设置初始值
-					m_ConstantBufferVariables[varDesc.Name]->SetRow(varDesc.Size, varDesc.DefaultValue);
+				m_ConstantBufferVariables[CBVariable->m_Name] = CBVariable;
+				if (!isStruct && varDesc.DefaultValue != nullptr) { // 设置初始值
+					m_ConstantBufferVariables[CBVariable->m_Name]->SetRow(varDesc.Size, varDesc.DefaultValue);
 				}
 			}
 			else {
 				// 若是着色器参数则独属于该着色器                
 				CBVariable->m_ConstantBuffer = shaderInfo[infoName]->m_pParamData.get();
-				shaderInfo[infoName]->m_ConstantBufferVariable[varDesc.Name] = CBVariable;
+				shaderInfo[infoName]->m_ConstantBufferVariable[CBVariable->m_Name] = CBVariable;
 			}
+		}
+		if (isStruct) {
+			// 设置各个变量的大小
+			auto prePair = sizeQueue.front();
+			std::string lastName = sizeQueue.back().first;
+			sizeQueue.pop();
+			for (;!sizeQueue.empty(); sizeQueue.pop()) {
+				auto varPair = sizeQueue.front();
+				m_ConstantBufferVariables[prePair.first]->m_ByteSize = varPair.second;
+				prePair = varPair;
+			}
+			// 设置最后一个变量的大小
+			m_ConstantBufferVariables[lastName]->m_ByteSize = CBDesc.Size - preOffset;
 		}
 	}
 
@@ -1117,6 +1170,7 @@ namespace DSM {
 		// Note that d3dcompiler would return null if no errors or warnings are present.  
 		// IDxcCompiler3::Compile will always return an error buffer, but its length will be zero if there are no warnings or errors.
 		if (pErrors != nullptr && pErrors->GetStringLength() != 0) {
+			auto str = pErrors->GetStringPointer();
 			wprintf(L"Warnings and Errors:\n%S\n", pErrors->GetStringPointer());
 			return nullptr;
 		}
@@ -1137,10 +1191,17 @@ namespace DSM {
 		ComPtr<IDxcBlob> pShader = nullptr;
 		ComPtr<IDxcBlobUtf16> pShaderName = nullptr;
 		ThrowIfFailed(pResults->GetOutput(DXC_OUT_OBJECT, IID_PPV_ARGS(&pShader), &pShaderName));
+		
+		ComPtr<ID3D12ShaderReflection> pReflection;
+		ComPtr<IDxcContainerReflection> pContainerReflection = nullptr;
+		ThrowIfFailed(DxcCreateInstance(CLSID_DxcContainerReflection, IID_PPV_ARGS(&pContainerReflection)));
+		ThrowIfFailed(pContainerReflection->Load(pShader.Get()));
+		std::uint32_t reflectIndex;
+		ThrowIfFailed(pContainerReflection->FindFirstPartKind(DXC_PART_DXIL, &reflectIndex));
+		ThrowIfFailed(pContainerReflection->GetPartReflection(reflectIndex, IID_PPV_ARGS(pReflection.GetAddressOf())));
+		
 
-		ComPtr< ID3D12ShaderReflection > pReflection;
-
-		ComPtr<IDxcBlob> pReflectionData;
+		/*ComPtr<IDxcBlob> pReflectionData;
 		ThrowIfFailed(pResults->GetOutput(DXC_OUT_REFLECTION, IID_PPV_ARGS(&pReflectionData), nullptr));
 		if (pReflectionData != nullptr) {
 			// Create reflection interface.
@@ -1150,7 +1211,8 @@ namespace DSM {
 			ReflectionData.Size = pReflectionData->GetBufferSize();
 
 			ThrowIfFailed(pUtils->CreateReflection(&ReflectionData, IID_PPV_ARGS(&pReflection)));
-		}
+		}*/
+		
 		ComPtr<ID3DBlob> pByteCode = nullptr;
 		ThrowIfFailed(pShader->QueryInterface(IID_PPV_ARGS(pByteCode.GetAddressOf())));
 

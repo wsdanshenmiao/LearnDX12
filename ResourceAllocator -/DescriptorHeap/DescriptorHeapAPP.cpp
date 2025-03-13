@@ -171,7 +171,7 @@ namespace DSM {
 		auto passConstants = constBuffers.find(typeid(PassConstants).name());
 		m_ShaderHelper.SetConstantBufferByName("gPassCB", passConstants->second);
 		auto lightConstants = constBuffers.find(lightManager.GetLightBufferName());
-		m_ShaderHelper.SetConstantBufferByName("Lights", lightConstants->second);
+		m_ShaderHelper.SetConstantBufferByName("gLightCB", lightConstants->second);
 
 		for (const auto& [name, obj] : objManager.GetAllObject()[(int)layer]) {
 			if (auto model = obj->GetModel(); model != nullptr) {
@@ -182,7 +182,7 @@ namespace DSM {
 				m_CommandList->IASetIndexBuffer(&indexBV);
 
 				auto objResource = constBuffers[name];
-				m_ShaderHelper.SetConstantBufferByName("ObjectConstants", objResource);
+				m_ShaderHelper.SetConstantBufferByName("gObjCB", objResource);
 
 				auto getObjCB = [&imgui](const Object& obj, RenderLayer layer) {
 					ObjectConstants ret{};
@@ -238,7 +238,7 @@ namespace DSM {
 						return ret;
 						};
 					auto matResource = constBuffers[name + "Mat" + std::to_string(matIndex)];
-					m_ShaderHelper.SetConstantBufferByName("MaterialConstants", matResource);
+					m_ShaderHelper.SetConstantBufferByName("gMatCB", matResource);
 					auto matConstants = getMatCB(mat);
 					XMFLOAT4 tmp = { matConstants.m_Diffuse.x,matConstants.m_Diffuse.y,matConstants.m_Diffuse.z,1.0f };
 					m_ShaderHelper.GetConstantBufferVariable("Diffuse")->SetVector(tmp);
@@ -286,7 +286,7 @@ namespace DSM {
 		}
 		ShaderDesc shaderDesc{};
 		shaderDesc.m_Defines = shaderDefines;
-		shaderDesc.m_Target = "ps_5_1";
+		shaderDesc.m_Target = "ps_6_1";
 		shaderDesc.m_EnterPoint = "PS";
 		shaderDesc.m_Type = ShaderType::PIXEL_SHADER;
 		shaderDesc.m_FileName = "Shaders\\Light.hlsl";
@@ -295,7 +295,7 @@ namespace DSM {
 		shaderDesc.m_EnterPoint = "VS";
 		shaderDesc.m_Type = ShaderType::VERTEX_SHADER;
 		shaderDesc.m_ShaderName = "LightsVS";
-		shaderDesc.m_Target = "vs_5_1";
+		shaderDesc.m_Target = "vs_6_1";
 		m_ShaderHelper.CreateShaderFormFile(shaderDesc);
 		ShaderPassDesc passDesc{};
 		passDesc.m_VSName = "LightsVS";
@@ -311,14 +311,14 @@ namespace DSM {
 		auto& modelManager = ModelManager::GetInstance();
 		auto& objManager = ObjectManager::GetInstance();
 
-		/*const Model* sponzaModel = modelManager.LoadModelFromeFile(
+		const Model* sponzaModel = modelManager.LoadModelFromeFile(
 			"Sponza",
 			"Models\\Sponza\\Sponza.gltf",
 			m_CommandList.Get());
 		auto sponza = std::make_shared<Object>(sponzaModel->GetName(), sponzaModel);
 		sponza->GetTransform().SetScale({ 0.2,0.2,0.2 });
 		sponza->GetTransform().SetRotation(0, MathHelper::PI / 2, 0);
-		objManager.AddObject(sponza, RenderLayer::Opaque);*/
+		objManager.AddObject(sponza, RenderLayer::Opaque);
 
 		// 创建模型及物体
 		const Model* elenaModel = modelManager.LoadModelFromeFile(

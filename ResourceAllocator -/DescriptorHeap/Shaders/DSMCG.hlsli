@@ -58,7 +58,7 @@ struct VertexPosWHNormalWTex
 struct ObjectConstants
 {
     float4x4 World;
-    float4x4 WorldInvTranspos;
+    float4x4 WorldInvTranspose;
 };
 
 struct PassConstants
