@@ -6,7 +6,7 @@
 #include "MeshData.h"
 #include "Material.h"
 #include "ObjectManager.h"
-#include "Shader.h"
+#include "ShaderHelper.h"
 #include "Waves.h"
 
 namespace DSM {
@@ -35,7 +35,7 @@ namespace DSM {
 		void CreateDescriptorHeaps();
 
 		void UpdatePassCB(const CpuTimer& timer);
-		void UpdateObjCB(const CpuTimer& timer);
+		void UpdateLightCB(const CpuTimer& timer);
 
 
 	public:
@@ -62,7 +62,7 @@ namespace DSM {
 		ShaderHelper m_ShaderHelper;
 	};
 
-
+	
 } // namespace DSM
 
 

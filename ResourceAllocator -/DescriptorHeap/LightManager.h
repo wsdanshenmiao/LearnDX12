@@ -18,6 +18,9 @@ namespace DSM {
 		std::size_t GetDirLightCount()const;
 		std::size_t GetPointLightCount() const;
 		std::size_t GetSpotLightCount() const;
+		const void* GetDirLight() const;
+		const void* GetPointLight() const;
+		const void* GetSpotLight() const;
 		const std::string& GetLightBufferName() const;
 		UINT GetLightByteSize() const;
 		std::vector<D3D_SHADER_MACRO> GetLightsShaderMacros(
@@ -29,12 +32,9 @@ namespace DSM {
 		void SetPointLight(std::size_t index, const PointLight& light);
 		void SetSpotLight(std::size_t index, const SpotLight& light);
 
-		void UpdateLight(FrameResource* frameResource);
-
 	protected:
 		friend Singleton<LightManager>;
 		LightManager(
-			UINT frameCount,
 			int maxDirLight = 3,
 			int maxPointLight = 1,
 			int maxSpotLight = 1);
@@ -42,8 +42,6 @@ namespace DSM {
 
 	private:
 		const std::string m_LightBufferName = "LightBuffer";
-		const UINT m_FrameCount;
-		UINT m_NumFrameDirty;
 
 		std::vector<DirectionalLight> m_DirLights;
 		std::vector<PointLight> m_PointLights;

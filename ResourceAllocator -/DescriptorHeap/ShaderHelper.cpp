@@ -1,7 +1,4 @@
-#include "Shader.h"
-
-#include "D3D12DescriptorHeap.h"
-#include "D3D12Resource.h"
+#include "ShaderHelper.h"
 #include "FrameResource.h"
 
 
@@ -655,11 +652,11 @@ namespace DSM {
 #pragma endregion
 
 
-#pragma region ShaderHealper
+#pragma region ShaderHelper
 	//
 	// ShaderHealper Implementation
 	//    
-#pragma region ShaderHealper Impl
+#pragma region ShaderHelper Impl
 	struct ShaderHelper::Impl
 	{
 		~Impl() = default;
@@ -969,6 +966,7 @@ namespace DSM {
 			};
 		auto it = std::find_if(m_Impl->m_ConstantBuffers.begin(), m_Impl->m_ConstantBuffers.end(), findByName);
 		if (it != m_Impl->m_ConstantBuffers.end()) {
+			it->second.m_IsDrty = true;
 			it->second.m_Resource = cb;
 		}
 	}
@@ -976,6 +974,7 @@ namespace DSM {
 	void ShaderHelper::SetConstantBufferBySlot(std::uint32_t slot, std::shared_ptr<D3D12ResourceLocation> cb)
 	{
 		if (auto it = m_Impl->m_ConstantBuffers.find(slot); it != m_Impl->m_ConstantBuffers.end()) {
+			it->second.m_IsDrty = true;
 			it->second.m_Resource = cb;
 		}
 	}

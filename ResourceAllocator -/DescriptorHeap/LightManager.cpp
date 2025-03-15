@@ -17,6 +17,21 @@ namespace DSM {
 		return m_SpotLights.size();
 	}
 
+	const void* LightManager::GetDirLight() const
+	{
+		return m_DirLights.data();
+	}
+
+	const void* LightManager::GetPointLight() const
+	{
+		return m_PointLights.data();
+	}
+
+	const void* LightManager::GetSpotLight() const
+	{
+		return m_SpotLights.data();
+	}
+
 	const std::string& LightManager::GetLightBufferName() const
 	{
 		return m_LightBufferName;
@@ -56,7 +71,6 @@ namespace DSM {
 	void LightManager::SetDirLight(std::size_t index, const DirectionalLight& light)
 	{
 		if (index < m_DirLights.size()) {
-			m_NumFrameDirty = m_FrameCount;
 			m_DirLights[index] = light;
 		}
 	}
@@ -64,7 +78,6 @@ namespace DSM {
 	void LightManager::SetPointLight(std::size_t index, const PointLight& light)
 	{
 		if (index < m_PointLights.size()) {
-			m_NumFrameDirty = m_FrameCount;
 			m_PointLights[index] = light;
 		}
 	}
@@ -72,38 +85,15 @@ namespace DSM {
 	void LightManager::SetSpotLight(std::size_t index, const SpotLight& light)
 	{
 		if (index < m_SpotLights.size()) {
-			m_NumFrameDirty = m_FrameCount;
 			m_SpotLights[index] = light;
 		}
 	}
 
-	void LightManager::UpdateLight(FrameResource* frameResource)
-	{
-		// 后续FrameNum个缓冲区都需要更新，前面的不用.
-		if (m_NumFrameDirty <= 0)return;
-
-		if (auto it = frameResource->m_Resources.find(m_LightBufferName); it != frameResource->m_Resources.end()) {
-			auto& resource = it->second;
-
-			BYTE* mappedData = static_cast<BYTE*>(resource->m_MappedBaseAddress);
-			auto dirLightSize = sizeof(DirectionalLight) * m_DirLights.size();
-			auto pointLightSize = sizeof(PointLight) * m_PointLights.size();
-			auto spotLightSize = sizeof(SpotLight) * m_SpotLights.size();
-
-			memcpy(mappedData, m_DirLights.data(), dirLightSize);
-			memcpy(mappedData + dirLightSize, m_PointLights.data(), pointLightSize);
-			memcpy(mappedData + dirLightSize + pointLightSize, m_SpotLights.data(), spotLightSize);
-		}
-
-		--m_NumFrameDirty;
-	}
-
 	LightManager::LightManager(
-		UINT frameCount,
 		int maxDirLight,
 		int maxPointLight,
 		int maxSpotLight)
-		:m_FrameCount(frameCount), m_NumFrameDirty(0) {
+	{
 		m_DirLights.resize(maxDirLight);
 		m_PointLights.resize(maxPointLight);
 		m_SpotLights.resize(maxSpotLight);

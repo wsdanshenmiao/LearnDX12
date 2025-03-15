@@ -4,7 +4,6 @@
 #include "ModelManager.h"
 #include "ConstantData.h"
 #include "LightManager.h"
-#include "Shader.h"
 #include "TextureManager.h"
 
 using namespace DirectX;
@@ -25,7 +24,7 @@ namespace DSM {
 		ThrowIfFailed(m_CommandList->Reset(m_DirectCmdListAlloc.Get(), nullptr));
 
 		// 注意初始化顺序
-		LightManager::Create(FrameCount);
+		LightManager::Create();
 		ObjectManager::Create();
 		ModelManager::Create(m_D3D12Device.Get());
 		TextureManager::Create(m_D3D12Device.Get(), m_CommandList.Get());
@@ -68,11 +67,7 @@ namespace DSM {
 		// Update
 		ImguiManager::GetInstance().Update(timer);
 		UpdatePassCB(timer);
-		DirectionalLight dirLight{};
-		dirLight.m_Dir = imgui.m_LightDir;
-		dirLight.m_Color = imgui.m_LightColor;
-		lightManager.SetDirLight(0, dirLight);
-		lightManager.UpdateLight(m_CurrFrameResource);
+		UpdateLightCB(timer);
 	}
 
 	void DescriptorHeapAPP::OnRender(const CpuTimer& timer)
@@ -445,77 +440,25 @@ namespace DSM {
 		m_ShaderHelper.GetConstantBufferVariable("EyePosW")->SetVector(eyePos);
 	}
 
-	void DescriptorHeapAPP::UpdateObjCB(const CpuTimer& timer)
+
+
+	void DescriptorHeapAPP::UpdateLightCB(const CpuTimer& timer)
 	{
-		auto& objManager = ObjectManager::GetInstance();
 		auto& imgui = ImguiManager::GetInstance();
+		auto& lightManager = LightManager::GetInstance();
+		
+		DirectionalLight dirLight{};
+		dirLight.m_Dir = imgui.m_LightDir;
+		dirLight.m_Color = imgui.m_LightColor;
+		lightManager.SetDirLight(0, dirLight);
 
-		XMVECTOR plane = XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f);
-		auto mirror = objManager.GetObjectByName("Mirror", RenderLayer::Mirror);
-		// 计算反射平面
-		if (mirror != nullptr && mirror->GetModel() != nullptr) {
-			auto model = mirror->GetModel();
-			auto normal = model->GetMesh(model->GetName())->m_Mesh.m_Vertices[0].m_Normal;
-			XMFLOAT3 pos = mirror->GetTransform().GetPosition();
-			XMVECTOR P = XMLoadFloat3(&pos);
-			plane = XMLoadFloat3(&normal);
-			// 旋转法线
-			plane = XMVector3Transform(plane, mirror->GetTransform().GetRotateMatrix());
-			XMStoreFloat3(&normal, XMVector3Normalize(plane));
-			float d;
-			XMStoreFloat(&d, XMVector3Dot(plane, P));
-			plane = XMVectorSet(normal.x, normal.y, normal.z, d);
-			XMStoreFloat4(&m_ReflectPlane, plane);
-		}
-
-		auto getObjCB = [&imgui, plane](const Object& obj, RenderLayer layer) {
-			ObjectConstants ret{};
-
-			auto& trans = obj.GetTransform();
-			auto scale = imgui.m_Transform.GetScaleMatrix() * trans.GetScaleMatrix();
-			auto rotate = imgui.m_Transform.GetRotateMatrix() * trans.GetRotateMatrix();
-			auto pos = imgui.m_Transform.GetTranslationMatrix() * trans.GetTranslationMatrix();
-			auto world = scale * rotate * pos;
-
-			if (layer == RenderLayer::Reflection) {
-				XMMATRIX refM = XMMatrixReflect(plane);
-				world *= refM;
-			}
-
-			XMStoreFloat4x4(&ret.m_World, XMMatrixTranspose(world));
-			XMStoreFloat4x4(&ret.m_WorldInvTranspose, MathHelper::InverseTransposeWithOutTranslate(world));
-
-			return ret;
-			};
-		auto getMatCB = [](const Material& material) {
-			MaterialConstants ret{};
-			if (auto diffuse = material.Get<XMFLOAT3>("DiffuseColor"); diffuse != nullptr) {
-				ret.m_Diffuse = *diffuse;
-			}
-			if (auto specular = material.Get<XMFLOAT3>("SpecularColor"); specular != nullptr) {
-				ret.m_Specular = *specular;
-			}
-			if (auto ambient = material.Get<XMFLOAT3>("AmbientColor"); ambient != nullptr) {
-				ret.m_Ambient = *ambient;
-				float ambientScale = 0.08f;
-				ret.m_Ambient = XMFLOAT3{
-					ret.m_Ambient.x * ambientScale,
-					ret.m_Ambient.y * ambientScale,
-					ret.m_Ambient.z * ambientScale };
-			}
-			if (auto gloss = material.Get<float>("SpecularFactor"); gloss != nullptr) {
-				ret.m_Gloss = *gloss;
-			}
-			if (auto alpha = material.Get<float>("Opacity"); alpha != nullptr) {
-				ret.m_Alpha = *alpha;
-			}
-			return ret;
-			};
-
-		//objManager.UpdateObjectsCB(m_CurrFrameResource, getObjCB, getMatCB);
+		m_ShaderHelper.GetConstantBufferVariable("DirectionalLights")
+			->SetRow(lightManager.GetDirLightCount() * sizeof(DirectionalLight), lightManager.GetDirLight());
+		m_ShaderHelper.GetConstantBufferVariable("PointLights")
+				->SetRow(lightManager.GetPointLightCount() * sizeof(PointLight), lightManager.GetPointLight());
+		m_ShaderHelper.GetConstantBufferVariable("SpotLights")
+			->SetRow(lightManager.GetSpotLightCount() * sizeof(SpotLight), lightManager.GetSpotLight());
 	}
-
-
 
 
 

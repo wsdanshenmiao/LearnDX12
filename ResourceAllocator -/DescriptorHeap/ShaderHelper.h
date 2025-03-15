@@ -2,13 +2,6 @@
 #ifndef __SHADER__H__
 #define __SHADER__H__
 
-#include <d3d12.h>
-#include <string>
-#include <vector>
-#include <map>
-#include <DirectXMath.h>
-#include <memory>
-#include <unordered_map>
 #include <wrl/client.h>
 #include <dxcapi.h>
 
@@ -149,16 +142,7 @@ namespace DSM {
 		std::unique_ptr<Impl> m_Impl;
 	};
 
-
-	class Shader
-	{
-	public:
-
-	private:
-		// ShaderPass ，可指定使用哪些 Shader
-		std::unordered_map<std::string, IShaderPass> m_ShaderPasses;
-	};
-
+	
 }
 
 #endif
