@@ -1,7 +1,9 @@
+groupName = "InitDX12 - Stencil"
+commonName = groupName .. "Common"
 if is_mode("debug") then 
-    binDir = path.join(os.projectdir(), "Bin/Debug/InitDX12 - Stencil")
+    binDir = path.join(os.projectdir(), "Bin/Debug/" .. groupName)
 else 
-    binDir = path.join(os.projectdir(), "Bin/Release/InitDX12 - Stencil")
+    binDir = path.join(os.projectdir(), "Bin/Release/" .. groupName)
 end 
 includes("Common")
 includes("InitDX12")

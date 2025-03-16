@@ -1,9 +1,9 @@
-targetName = "Common"
-target(targetName)
+target(commonName)
     -- 设置目标类型
     set_kind("static")
-    set_group("ResourceAllocator -")
+    set_group(groupName)
     set_targetdir(path.join(binDir, targetName))
+    set_filename("Common.lib") -- 指定输出的文件的名字
 
     add_deps("Imgui")
     add_headerfiles("**.h")

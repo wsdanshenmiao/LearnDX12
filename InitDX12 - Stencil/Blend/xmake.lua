@@ -1,10 +1,10 @@
 targetName = "Blend"
 target(targetName)
     set_kind("binary")
-    set_group("InitDX12 - Stencil")
+    set_group(groupName)
     set_targetdir(path.join(binDir, targetName))
 
-    add_deps("Common")
+    add_deps(commonName)
     
     add_rules("Imguiini")
     add_rules("ShaderCopy")
