@@ -1,4 +1,5 @@
 #include "D3D12Allocatioin.h"
+#include "D3DUtil.h"
 
 using namespace DirectX;
 using Microsoft::WRL::ComPtr;

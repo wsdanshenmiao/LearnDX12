@@ -1,4 +1,5 @@
 #include "D3D12Resource.h"
+#include "D3DUtil.h"
 
 namespace DSM {
 	D3D12Resource::D3D12Resource(

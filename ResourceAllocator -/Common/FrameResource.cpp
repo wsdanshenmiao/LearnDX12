@@ -1,4 +1,5 @@
 #include "FrameResource.h"
+#include "D3DUtil.h"
 
 namespace DSM {
 	FrameResource::FrameResource(ID3D12Device* device)

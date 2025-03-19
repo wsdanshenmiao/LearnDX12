@@ -9,12 +9,20 @@ namespace DSM {
     class Camera
     {
     public:
+        virtual ~Camera() = default;
         const Transform& GetTransform() const noexcept;
         
         
         DirectX::XMMATRIX GetViewMatrixXM() const noexcept;
         DirectX::XMMATRIX GetProjMatrixXM(bool reversedZ = false) const noexcept;
         DirectX::XMMATRIX GetViewProjMatrixXM(bool reversedZ = false) const noexcept;
+
+        DirectX::XMVECTOR GetRightAxisXM() const;
+        DirectX::XMFLOAT3 GetRightAxis() const;
+        DirectX::XMVECTOR GetUpAxisXM() const;
+        DirectX::XMFLOAT3 GetUpAxis() const;
+        DirectX::XMVECTOR GetLookAxisXM() const;
+        DirectX::XMFLOAT3 GetLookAxis() const;
 
         // 获取视口
         D3D12_VIEWPORT GetViewPort() const noexcept;
@@ -30,7 +38,7 @@ namespace DSM {
         void LookAt(const DirectX::XMFLOAT3& pos, const DirectX::XMFLOAT3& target,const DirectX::XMFLOAT3& up) noexcept;
         void LookTo(const DirectX::XMFLOAT3& pos, const DirectX::XMFLOAT3& to, const DirectX::XMFLOAT3& up) noexcept;
         // 平移
-        void Strafe(float d) noexcept;
+        virtual void Strafe(float d) noexcept;
         // 直行(平面移动)
         void Walk(float d) noexcept;
         // 前进(朝前向移动)
@@ -60,7 +68,6 @@ namespace DSM {
             float maxDepth = 1.0f) noexcept;
     
     protected:
-
         // 摄像机的变换
         Transform m_Transform = {};
     
@@ -74,6 +81,41 @@ namespace DSM {
         D3D12_VIEWPORT m_ViewPort = {};
 
     };
+
+    class ThirdPersonCamera : public Camera
+    {
+    public:
+        ThirdPersonCamera() = default;
+        ~ThirdPersonCamera() override;
+
+        // 获取当前跟踪物体的位置
+        DirectX::XMFLOAT3 GetTargetPosition() const;
+        // 获取与物体的距离
+        float GetDistance() const;
+        // 绕物体垂直旋转(注意绕x轴旋转欧拉角弧度限制在[0, pi/3])
+        void RotateX(float rad);
+        // 绕物体水平旋转
+        void RotateY(float rad);
+        // 拉近物体
+        void Approach(float dist);
+        // 设置初始绕X轴的弧度(注意绕x轴旋转欧拉角弧度限制在[0, pi/3])
+        void SetRotationX(float rad);
+        // 设置初始绕Y轴的弧度
+        void SetRotationY(float rad);
+        // 设置并绑定待跟踪物体的位置
+        void SetTarget(const DirectX::XMFLOAT3& target);
+        // 设置初始距离
+        void SetDistance(float dist);
+        // 设置最小最大允许距离
+        void SetDistanceMinMax(float minDist, float maxDist);
+
+    private:
+        DirectX::XMFLOAT3 m_Target = {};
+        float m_Distance = 0.0f;
+        // 最小允许距离，最大允许距离
+        float m_MinDist = 0.0f, m_MaxDist = 0.0f;
+    };
+    
 }
 
 #endif

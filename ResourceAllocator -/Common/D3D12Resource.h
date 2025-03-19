@@ -1,9 +1,10 @@
 #pragma once
 #ifndef __D3D12RESOURCE__H__
 #define __D3D12RESOURCE__H__
-#include <wrl/client.h>
 
-#include "D3DUtil.h"
+#include <wrl/client.h>
+#include <d3d12.h>
+#include <memory>
 
 namespace DSM {
 	class D3D12BuddyAllocator;

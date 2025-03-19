@@ -2,7 +2,12 @@
 #ifndef __D3D12DESCRIPTORHANDLE__H__
 #define __D3D12DESCRIPTORHANDLE__H__
 
-#include "Pubh.h"
+#include <d3d12.h>
+#include <array>
+#include <vector>
+#include <string>
+#include <wrl/client.h>
+#include <memory>
 
 namespace DSM {
     // 描述符的句柄

@@ -8,7 +8,7 @@ namespace DSM {
 
 	struct VertexPosLColor
 	{
-		static decltype(auto) GetInputLayout()
+		static const auto& GetInputLayout()
 		{
 			static const std::array<D3D12_INPUT_ELEMENT_DESC, 2> inputLayout = {
 				D3D12_INPUT_ELEMENT_DESC{ "POSITIONT", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0,
@@ -25,7 +25,7 @@ namespace DSM {
 
 	struct VertexPosLNormalColor
 	{
-		static decltype(auto) GetInputLayout()
+		static const auto& GetInputLayout()
 		{
 			static const std::array<D3D12_INPUT_ELEMENT_DESC, 3> inputLayout = {
 				D3D12_INPUT_ELEMENT_DESC{ "POSITIONT", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0,
@@ -45,7 +45,7 @@ namespace DSM {
 
 	struct VertexPosLNormalTangentColor
 	{
-		static decltype(auto) GetInputLayout()
+		static const auto& GetInputLayout()
 		{
 			static const std::array<D3D12_INPUT_ELEMENT_DESC, 4> inputLayout = {
 				D3D12_INPUT_ELEMENT_DESC{ "POSITIONT", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0,
@@ -68,7 +68,7 @@ namespace DSM {
 
 	struct VertexPosLNormal
 	{
-		static decltype(auto) GetInputLayout()
+		static const auto&  GetInputLayout()
 		{
 			static const std::array<D3D12_INPUT_ELEMENT_DESC, 2> inputLayout = {
 				D3D12_INPUT_ELEMENT_DESC{ "POSITIONT", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0,
@@ -85,7 +85,7 @@ namespace DSM {
 
 	struct VertexPosLNormalTex
 	{
-		static decltype(auto) GetInputLayout()
+		static const auto& GetInputLayout()
 		{
 			static const std::array<D3D12_INPUT_ELEMENT_DESC, 3> inputLayout = {
 				D3D12_INPUT_ELEMENT_DESC{ "POSITIONT", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0,

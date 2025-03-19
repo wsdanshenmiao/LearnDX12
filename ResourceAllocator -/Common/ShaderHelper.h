@@ -1,12 +1,16 @@
 #pragma once
-#ifndef __SHADER__H__
-#define __SHADER__H__
+#ifndef __SHADERHELPER__H__
+#define __SHADERHELPER__H__
 
 #include <wrl/client.h>
 #include <dxcapi.h>
+#include <DirectXMath.h>
+#include <map>
 
 #include "D3D12DescriptorHeap.h"
 #include "D3D12Resource.h"
+
+struct ID3D12ShaderReflection;
 
 namespace DSM {
 	class FrameResource;
@@ -61,6 +65,8 @@ namespace DSM {
 	{
 		virtual void SetInt(int val) = 0;
 		virtual void SetFloat(float val) = 0;
+		virtual void SetFloat2(const DirectX::XMFLOAT2& val) = 0;
+		virtual void SetFloat3(const DirectX::XMFLOAT3& val) = 0;
 		virtual void SetVector(const DirectX::XMFLOAT4& val) = 0;
 		virtual void SetMatrix(const DirectX::XMFLOAT4X4& val) = 0;
 		virtual void SetRow(std::uint32_t byteSize, const void* data, std::uint32_t offset = 0) = 0;
@@ -71,6 +77,8 @@ namespace DSM {
 	class ShaderHelper;
 	struct IShaderPass
 	{
+		using CBVariableSP = std::shared_ptr<IConstantBufferVariable>;
+		
 		virtual void SetBlendState(const D3D12_BLEND_DESC& blendDesc) = 0;
 		virtual void SetRasterizerState(const D3D12_RASTERIZER_DESC& rasterizerDesc) = 0;
 		virtual void SetDepthStencilState(const D3D12_DEPTH_STENCIL_DESC& depthStencilDesc) = 0;
@@ -82,12 +90,12 @@ namespace DSM {
 		virtual void SetRTVFormat(const std::vector<DXGI_FORMAT>& formats) = 0;
 
 		// 获取顶点着色器的uniform形参用于设置值
-		virtual std::shared_ptr<IConstantBufferVariable> VSGetParamByName(const std::string& paramName) = 0;
-		virtual std::shared_ptr<IConstantBufferVariable> DSGetParamByName(const std::string& paramName) = 0;
-		virtual std::shared_ptr<IConstantBufferVariable> HSGetParamByName(const std::string& paramName) = 0;
-		virtual std::shared_ptr<IConstantBufferVariable> GSGetParamByName(const std::string& paramName) = 0;
-		virtual std::shared_ptr<IConstantBufferVariable> PSGetParamByName(const std::string& paramName) = 0;
-		virtual std::shared_ptr<IConstantBufferVariable> CSGetParamByName(const std::string& paramName) = 0;
+		virtual CBVariableSP VSGetParamByName(const std::string& paramName) = 0;
+		virtual CBVariableSP DSGetParamByName(const std::string& paramName) = 0;
+		virtual CBVariableSP HSGetParamByName(const std::string& paramName) = 0;
+		virtual CBVariableSP GSGetParamByName(const std::string& paramName) = 0;
+		virtual CBVariableSP PSGetParamByName(const std::string& paramName) = 0;
+		virtual CBVariableSP CSGetParamByName(const std::string& paramName) = 0;
 
 		virtual const ShaderHelper* GetShaderHelper() const = 0;
 		virtual const std::string& GetPassName()const = 0;
@@ -105,6 +113,9 @@ namespace DSM {
 	class ShaderHelper
 	{
 	public:
+		using HandleArray = std::vector<D3D12DescriptorHandle>;
+
+		
 		ShaderHelper();
 		~ShaderHelper();
 		ShaderHelper(const ShaderHelper&) = delete;
@@ -114,12 +125,12 @@ namespace DSM {
 
 		void SetConstantBufferByName(const std::string& name, std::shared_ptr<D3D12ResourceLocation> cb);
 		void SetConstantBufferBySlot(std::uint32_t slot, std::shared_ptr<D3D12ResourceLocation> cb);
-		void SetShaderResourceByName(const std::string& name, const std::vector<D3D12DescriptorHandle>& resource);
-		void SetShaderResourceBySlot(std::uint32_t slot, const std::vector<D3D12DescriptorHandle>& resource);
-		void SetRWResourceByName(const std::string& name, const std::vector<D3D12DescriptorHandle>& resource);
-		void SetRWResrouceBySlot(std::uint32_t slot, const std::vector<D3D12DescriptorHandle>& resource);
-		void SetSampleStateByName(const std::string& name, const std::vector<D3D12DescriptorHandle>& sampleState);
-		void SetSampleStateBySlot(std::uint32_t slot, const std::vector<D3D12DescriptorHandle>& sampleState);
+		void SetShaderResourceByName(const std::string& name, const HandleArray& resource);
+		void SetShaderResourceBySlot(std::uint32_t slot, const HandleArray& resource);
+		void SetRWResourceByName(const std::string& name, const HandleArray& resource);
+		void SetRWResrouceBySlot(std::uint32_t slot, const HandleArray& resource);
+		void SetSampleStateByName(const std::string& name, const HandleArray& sampleState);
+		void SetSampleStateBySlot(std::uint32_t slot, const HandleArray& sampleState);
 
 		std::shared_ptr<IConstantBufferVariable> GetConstantBufferVariable(const std::string& name);
 
@@ -129,9 +140,8 @@ namespace DSM {
 		void CreateShaderFormFile(const ShaderDesc& shaderDesc);
 		void Clear();
 
-	private:
-		Microsoft::WRL::ComPtr<ID3DBlob> DXCCreateShaderFromFile(const ShaderDesc& shaderDesc);
-		Microsoft::WRL::ComPtr<ID3DBlob> D3DCompileCreateShaderFromFile(const ShaderDesc& shaderDesc);
+		Microsoft::WRL::ComPtr<ID3DBlob> DXCCreateShaderFromFile(const ShaderDesc& shaderDesc, ID3D12ShaderReflection** reflection);
+		Microsoft::WRL::ComPtr<ID3DBlob> D3DCompileCreateShaderFromFile(const ShaderDesc& shaderDesc, ID3D12ShaderReflection** reflection);
 
 
 	public:

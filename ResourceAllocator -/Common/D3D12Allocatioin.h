@@ -1,8 +1,9 @@
 #pragma once
 #ifndef __D3D12__ALLOCATOR__H__
 #define __D3D12__ALLOCATOR__H__
-#include <queue>
 
+#include <queue>
+#include <set>
 #include "D3D12Resource.h"
 
 namespace DSM {

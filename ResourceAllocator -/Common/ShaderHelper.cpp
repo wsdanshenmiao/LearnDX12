@@ -1,5 +1,6 @@
 #include "ShaderHelper.h"
 #include "FrameResource.h"
+#include "D3DUtil.h"
 
 
 using namespace DirectX;
@@ -66,6 +67,16 @@ namespace DSM {
 		void SetFloat(float val) override
 		{
 			SetRow(sizeof(float), &val);
+		}
+
+		void SetFloat2(const DirectX::XMFLOAT2& val) override
+		{
+			SetRow(sizeof(DirectX::XMFLOAT2), &val);
+		}
+
+		void SetFloat3(const DirectX::XMFLOAT3& val) override
+		{
+			SetRow(sizeof(DirectX::XMFLOAT3), &val);
 		}
 
 		void SetVector(const DirectX::XMFLOAT4& val) override
@@ -167,10 +178,10 @@ namespace DSM {
 	{
 		ShaderPass(ShaderHelper* shaderHelper,
 			const std::string& passName,
-			std::unordered_map<std::uint32_t, ConstantBuffer>& cBuffers,
-			std::unordered_map<std::uint32_t, ShaderResource>& shaderResources,
-			std::unordered_map<std::uint32_t, RWResource>& rwResources,
-			std::unordered_map<std::uint32_t, SamplerState>& samplerStates);
+			std::map<std::uint32_t, ConstantBuffer>& cBuffers,
+			std::map<std::uint32_t, ShaderResource>& shaderResources,
+			std::map<std::uint32_t, RWResource>& rwResources,
+			std::map<std::uint32_t, SamplerState>& samplerStates);
 
 		void SetBlendState(const D3D12_BLEND_DESC& blendDesc) override;
 		void SetRasterizerState(const D3D12_RASTERIZER_DESC& rasterizerDesc) override;
@@ -182,13 +193,13 @@ namespace DSM {
 		void SetDSVFormat(DXGI_FORMAT format) override;
 		void SetRTVFormat(const std::vector<DXGI_FORMAT>& formats) override;
 
-		std::shared_ptr<IConstantBufferVariable> VSGetParamByName(const std::string& paramName) override;
-		std::shared_ptr<IConstantBufferVariable> DSGetParamByName(const std::string& paramName) override;
-		std::shared_ptr<IConstantBufferVariable> HSGetParamByName(const std::string& paramName) override;
-		std::shared_ptr<IConstantBufferVariable> GSGetParamByName(const std::string& paramName) override;
-		std::shared_ptr<IConstantBufferVariable> PSGetParamByName(const std::string& paramName) override;
-		std::shared_ptr<IConstantBufferVariable> CSGetParamByName(const std::string& paramName) override;
-		std::shared_ptr<IConstantBufferVariable> GetParamByName(const std::string& paramName, ShaderType type);
+		CBVariableSP VSGetParamByName(const std::string& paramName) override;
+		CBVariableSP DSGetParamByName(const std::string& paramName) override;
+		CBVariableSP HSGetParamByName(const std::string& paramName) override;
+		CBVariableSP GSGetParamByName(const std::string& paramName) override;
+		CBVariableSP PSGetParamByName(const std::string& paramName) override;
+		CBVariableSP CSGetParamByName(const std::string& paramName) override;
+		CBVariableSP GetParamByName(const std::string& paramName, ShaderType type);
 
 		const ShaderHelper* GetShaderHelper() const override;
 		const std::string& GetPassName() const override;
@@ -206,11 +217,10 @@ namespace DSM {
 		std::vector<std::shared_ptr<ShaderInfo>> m_ShaderInfos{};
 
 		// 来自Shader中的共用资源
-		std::unordered_map<std::uint32_t, ConstantBuffer>& m_CBuffers;
-		std::unordered_map<std::uint32_t, ShaderResource>& m_ShaderResources;
-		std::unordered_map<std::uint32_t, RWResource>& m_RWResources;
-		std::unordered_map<std::uint32_t, SamplerState>& m_SamplerStates;
-
+		std::map<std::uint32_t, ConstantBuffer>& m_CBuffers;
+		std::map<std::uint32_t, ShaderResource>& m_ShaderResources;
+		std::map<std::uint32_t, RWResource>& m_RWResources;
+		std::map<std::uint32_t, SamplerState>& m_SamplerStates;
 
 		ComPtr<ID3D12RootSignature> m_pRootSignature = nullptr;
 
@@ -232,10 +242,10 @@ namespace DSM {
 
 	ShaderPass::ShaderPass(ShaderHelper* shaderHelper,
 		const std::string& passName,
-		std::unordered_map<std::uint32_t, ConstantBuffer>& cBuffers,
-		std::unordered_map<std::uint32_t, ShaderResource>& shaderResources,
-		std::unordered_map<std::uint32_t, RWResource>& rwResources,
-		std::unordered_map<std::uint32_t, SamplerState>& samplerStates)
+		std::map<std::uint32_t, ConstantBuffer>& cBuffers,
+		std::map<std::uint32_t, ShaderResource>& shaderResources,
+		std::map<std::uint32_t, RWResource>& rwResources,
+		std::map<std::uint32_t, SamplerState>& samplerStates)
 		:m_PassName(passName),
 		m_pShaderHealper(shaderHelper),
 		m_CBuffers(cBuffers),
@@ -344,37 +354,37 @@ namespace DSM {
 		m_PSODesc.NumRenderTargets = formats.size();
 	}
 
-	std::shared_ptr<IConstantBufferVariable> ShaderPass::VSGetParamByName(const std::string& paramName)
+	ShaderPass::CBVariableSP ShaderPass::VSGetParamByName(const std::string& paramName)
 	{
 		return GetParamByName(paramName, ShaderType::VERTEX_SHADER);
 	}
 
-	std::shared_ptr<IConstantBufferVariable> ShaderPass::DSGetParamByName(const std::string& paramName)
+	ShaderPass::CBVariableSP ShaderPass::DSGetParamByName(const std::string& paramName)
 	{
 		return GetParamByName(paramName, ShaderType::DOMAIN_SHADER);
 	}
 
-	std::shared_ptr<IConstantBufferVariable> ShaderPass::HSGetParamByName(const std::string& paramName)
+	ShaderPass::CBVariableSP ShaderPass::HSGetParamByName(const std::string& paramName)
 	{
 		return GetParamByName(paramName, ShaderType::HULL_SHADER);
 	}
 
-	std::shared_ptr<IConstantBufferVariable> ShaderPass::GSGetParamByName(const std::string& paramName)
+	ShaderPass::CBVariableSP ShaderPass::GSGetParamByName(const std::string& paramName)
 	{
 		return GetParamByName(paramName, ShaderType::GEOMETRY_SHADER);
 	}
 
-	std::shared_ptr<IConstantBufferVariable> ShaderPass::PSGetParamByName(const std::string& paramName)
+	ShaderPass::CBVariableSP ShaderPass::PSGetParamByName(const std::string& paramName)
 	{
 		return GetParamByName(paramName, ShaderType::PIXEL_SHADER);
 	}
 
-	std::shared_ptr<IConstantBufferVariable> ShaderPass::CSGetParamByName(const std::string& paramName)
+	ShaderPass::CBVariableSP ShaderPass::CSGetParamByName(const std::string& paramName)
 	{
 		return GetParamByName(paramName, ShaderType::COMPUTE_SHADER);
 	}
 
-	std::shared_ptr<IConstantBufferVariable> ShaderPass::GetParamByName(const std::string& paramName, ShaderType type)
+	ShaderPass::CBVariableSP ShaderPass::GetParamByName(const std::string& paramName, ShaderType type)
 	{
 		auto info = m_ShaderInfos[static_cast<int>(type)];
 		if (info != nullptr) {
@@ -665,18 +675,18 @@ namespace DSM {
 		void Clear();
 
 		// 存储编译后的 Shader代码
-		std::unordered_map<std::string, ComPtr<ID3DBlob>> m_ShaderPassByteCode;
+		std::map<std::string, ComPtr<ID3DBlob>> m_ShaderPassByteCode;
 		// 着色器的信息
 		std::unordered_map<std::string, std::shared_ptr<ShaderInfo>> m_ShaderInfo;
 
-		std::unordered_map<std::string, std::shared_ptr<IShaderPass>> m_ShaderPass;
+		std::map<std::string, std::shared_ptr<IShaderPass>> m_ShaderPass;
 
 		// 各种着色器资源，需要所有着色器的常量缓冲区没有冲突
 		std::unordered_map<std::string, std::shared_ptr<ConstantBufferVariable>> m_ConstantBufferVariables;
-		std::unordered_map<std::uint32_t, ConstantBuffer> m_ConstantBuffers;
-		std::unordered_map<std::uint32_t, ShaderResource> m_ShaderResources;
-		std::unordered_map<std::uint32_t, RWResource> m_RWResources;
-		std::unordered_map<std::uint32_t, SamplerState> m_SamplerStates;
+		std::map<std::uint32_t, ConstantBuffer> m_ConstantBuffers;
+		std::map<std::uint32_t, ShaderResource> m_ShaderResources;
+		std::map<std::uint32_t, RWResource> m_RWResources;
+		std::map<std::uint32_t, SamplerState> m_SamplerStates;
 
 	private:
 		void GetConstantBufferInfo(
@@ -1033,7 +1043,7 @@ namespace DSM {
 		}
 	}
 
-	std::shared_ptr<IConstantBufferVariable> ShaderHelper::GetConstantBufferVariable(const std::string& name)
+	ShaderPass::CBVariableSP ShaderHelper::GetConstantBufferVariable(const std::string& name)
 	{
 		auto it = m_Impl->m_ConstantBufferVariables.find(name);
 		return it == m_Impl->m_ConstantBufferVariables.end() ? nullptr : it->second;
@@ -1101,11 +1111,14 @@ namespace DSM {
 		m_Impl->m_ShaderInfo[shaderInfoName] = shaderInfo;
 		m_Impl->m_ShaderInfo[shaderInfoName]->m_Name = shaderDesc.m_ShaderName;
 
+		ComPtr<ID3D12ShaderReflection> reflection;
 		ComPtr<ID3DBlob> byteCode = nullptr;
-		if (byteCode = DXCCreateShaderFromFile(shaderDesc); byteCode == nullptr) {
-			byteCode = D3DCompileCreateShaderFromFile(shaderDesc);
+		if (byteCode = DXCCreateShaderFromFile(shaderDesc, reflection.GetAddressOf()); byteCode == nullptr) {
+			byteCode = D3DCompileCreateShaderFromFile(shaderDesc, reflection.GetAddressOf());
 		}
 
+		m_Impl->GetShaderInfo(shaderDesc.m_ShaderName, shaderDesc.m_Type, reflection.Get());
+		
 		m_Impl->m_ShaderInfo[shaderInfoName]->m_pShader = byteCode;
 
 		m_Impl->m_ShaderPassByteCode[shaderDesc.m_FileName] = byteCode;
@@ -1116,7 +1129,7 @@ namespace DSM {
 		m_Impl->Clear();
 	}
 
-	ComPtr<ID3DBlob> ShaderHelper::DXCCreateShaderFromFile(const ShaderDesc& shaderDesc)
+	ComPtr<ID3DBlob> ShaderHelper::DXCCreateShaderFromFile(const ShaderDesc& shaderDesc, ID3D12ShaderReflection** reflection)
 	{
 		ComPtr<IDxcUtils> pUtils;
 		ComPtr<IDxcCompiler3> pCompiler;
@@ -1191,36 +1204,22 @@ namespace DSM {
 		ComPtr<IDxcBlobUtf16> pShaderName = nullptr;
 		ThrowIfFailed(pResults->GetOutput(DXC_OUT_OBJECT, IID_PPV_ARGS(&pShader), &pShaderName));
 		
-		ComPtr<ID3D12ShaderReflection> pReflection;
-		ComPtr<IDxcContainerReflection> pContainerReflection = nullptr;
-		ThrowIfFailed(DxcCreateInstance(CLSID_DxcContainerReflection, IID_PPV_ARGS(&pContainerReflection)));
-		ThrowIfFailed(pContainerReflection->Load(pShader.Get()));
-		std::uint32_t reflectIndex;
-		ThrowIfFailed(pContainerReflection->FindFirstPartKind(DXC_PART_DXIL, &reflectIndex));
-		ThrowIfFailed(pContainerReflection->GetPartReflection(reflectIndex, IID_PPV_ARGS(pReflection.GetAddressOf())));
-		
-
-		/*ComPtr<IDxcBlob> pReflectionData;
-		ThrowIfFailed(pResults->GetOutput(DXC_OUT_REFLECTION, IID_PPV_ARGS(&pReflectionData), nullptr));
-		if (pReflectionData != nullptr) {
-			// Create reflection interface.
-			DxcBuffer ReflectionData;
-			ReflectionData.Encoding = DXC_CP_ACP;
-			ReflectionData.Ptr = pReflectionData->GetBufferPointer();
-			ReflectionData.Size = pReflectionData->GetBufferSize();
-
-			ThrowIfFailed(pUtils->CreateReflection(&ReflectionData, IID_PPV_ARGS(&pReflection)));
-		}*/
+		if (reflection != nullptr) {
+			ComPtr<IDxcContainerReflection> pContainerReflection = nullptr;
+			ThrowIfFailed(DxcCreateInstance(CLSID_DxcContainerReflection, IID_PPV_ARGS(&pContainerReflection)));
+			ThrowIfFailed(pContainerReflection->Load(pShader.Get()));
+			std::uint32_t reflectIndex;
+			ThrowIfFailed(pContainerReflection->FindFirstPartKind(DXC_PART_DXIL, &reflectIndex));
+			ThrowIfFailed(pContainerReflection->GetPartReflection(reflectIndex, IID_PPV_ARGS(reflection)));
+		}
 		
 		ComPtr<ID3DBlob> pByteCode = nullptr;
 		ThrowIfFailed(pShader->QueryInterface(IID_PPV_ARGS(pByteCode.GetAddressOf())));
 
-		m_Impl->GetShaderInfo(shaderDesc.m_ShaderName, shaderDesc.m_Type, pReflection.Get());
-
 		return pByteCode.Get();
 	}
 
-	ComPtr<ID3DBlob> ShaderHelper::D3DCompileCreateShaderFromFile(const ShaderDesc& shaderDesc)
+	ComPtr<ID3DBlob> ShaderHelper::D3DCompileCreateShaderFromFile(const ShaderDesc& shaderDesc, ID3D12ShaderReflection** reflection)
 	{
 		ComPtr<ID3DBlob> byteCode = nullptr;
 		ComPtr<ID3DBlob> errors = nullptr;
@@ -1253,12 +1252,11 @@ namespace DSM {
 		}
 
 		// 获取着色器反射
-		ComPtr<ID3D12ShaderReflection> shaderReflection;
-		ThrowIfFailed(D3DReflect(byteCode->GetBufferPointer(),
-			byteCode->GetBufferSize(),
-			IID_PPV_ARGS(shaderReflection.GetAddressOf())));
-
-		m_Impl->GetShaderInfo(shaderDesc.m_ShaderName, shaderDesc.m_Type, shaderReflection.Get());
+		if (reflection != nullptr) {
+			ThrowIfFailed(D3DReflect(byteCode->GetBufferPointer(),
+				byteCode->GetBufferSize(),
+				IID_PPV_ARGS(reflection)));
+		}
 
 		return byteCode;
 	}

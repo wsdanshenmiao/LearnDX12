@@ -8,3 +8,4 @@ end
 includes("Common")
 includes("ResourceAllocator")
 includes("DescriptorHeap")
+includes("ShadowMap")
