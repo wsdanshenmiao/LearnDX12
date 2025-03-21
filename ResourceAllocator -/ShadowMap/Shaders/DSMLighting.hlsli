@@ -141,4 +141,28 @@ float3 ComputeLighting(
     return col;
 }
 
+
+float PCF(SamplerComparisonState sampler, Texture2D shadowMap, float4 shadowPosH, float depthBias = 0)
+{
+    shadowPosH.xyz /= shadowPosH.w;
+
+    float depth = shadowPosH.z - depthBias;
+    //return shadowMap.SampleCmpLevelZero(sampler, shadowPosH.xy, depth).r;
+    float visibility = 0;
+    // SampleCmpLevelZero 若depth < sample则返回1，反之返回0， 将对周围的四个像素进行采样，得到的结果最后进行双线性插值
+    // float result0 = depth <= s0;         
+    // float result1 = depth <= s1;
+    // float result2 = depth <= s2;
+    // float result3 = depth <= s3;
+    // float result = BilinearLerp(result0, result1, result2, result3, a, b);  // a b为算出的插值相对位置
+    for (int i = 0 ; i < 9; ++i) {
+        visibility += shadowMap.SampleCmpLevelZero(
+            sampler, shadowPosH.xy, depth, int2(i % 3 - 1, i / 3 - 1)).r;
+    }
+
+    visibility /= 9.0f;
+
+    return visibility;
+}
+
 #endif

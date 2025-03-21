@@ -343,9 +343,9 @@ namespace DSM {
 			"Models\\Sponza\\Sponza.gltf",
 			m_CommandList.Get());
 		auto sponza = std::make_shared<Object>(sponzaModel->GetName(), sponzaModel);
-		sponza->GetTransform().SetScale({ 0.2,0.2,0.2 });
+		sponza->GetTransform().SetScale({ 0.1,0.1,0.1 });
 		sponza->GetTransform().SetRotation(0, MathHelper::PI / 2, 0);
-		//objManager.AddObject(sponza, RenderLayer::Opaque);
+		objManager.AddObject(sponza, RenderLayer::Opaque);
 
 		// 创建模型及物体
 		const Model* elenaModel = modelManager.LoadModelFromeFile(
@@ -353,7 +353,6 @@ namespace DSM {
 			"Models\\Elena.obj",
 			m_CommandList.Get());
 		auto elena = std::make_shared<Object>(elenaModel->GetName(), elenaModel);
-		elena->GetTransform().SetScale({ 2,2,2 });
 		objManager.AddObject(elena, RenderLayer::Opaque);
 
 		const Model* planeModel = modelManager.LoadModelFromeGeometry(

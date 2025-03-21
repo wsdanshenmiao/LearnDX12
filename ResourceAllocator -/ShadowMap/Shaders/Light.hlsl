@@ -50,8 +50,7 @@ float4 PS(VertexPosWHNormalWTexShadow i) : SV_Target
     [unroll]
     for (int index = 0; index < MAXDIRLIGHTCOUNT; ++index)
     {
-        shadowFactor[index] = gShadowMap.SampleCmpLevelZero(gSamplerShadowBorder, shadowPosH.xy, shadowPosH.z).r;
-        //shadowFactor[index] = 1;
+        shadowFactor[index] = PCF(gSamplerShadowBorder, gShadowMap, i.ShadowPosH);
     }
     float3 col = ComputeLighting(gLightCB, gMatCB, viewDir, normal, i.PosW, shadowFactor);
     col += gMatCB.Ambient;
