@@ -28,7 +28,8 @@ namespace DSM {
 		DirectX::XMFLOAT3 m_LightDir;
 		DirectX::XMFLOAT3 m_LightColor;
 
-		D3D12DescriptorHandle m_DebugShadowMapHandle;
+		D3D12DescriptorHandle m_DebugShadowMapRTV;
+		D3D12DescriptorHandle m_DebugShadowMapSRV;
 	};
 }
 

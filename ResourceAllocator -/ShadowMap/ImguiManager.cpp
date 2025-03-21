@@ -43,17 +43,16 @@ namespace DSM {
 
 	void ImguiManager::RenderImGui(ID3D12GraphicsCommandList* cmdList)
 	{
-		if (m_EnableDebug) {
+		/*if (m_EnableDebug) {
 			if (ImGui::Begin("Debug")) {
-				//cmdList->OMSetRenderTargets(1, &m_DebugShadowMapHandle, false, nullptr);
-				//cmdList->DrawInstanced(3, 1, 0, 0);
+				cmdList->DrawInstanced(3, 1, 0, 0);
 				
-				//ImVec2 winSize = ImGui::GetWindowSize();
-				//float smaller = (std::min)(winSize.x - 20, winSize.y - 36);
-				//ImGui::Image(m_DebugShadowMapHandle.GetCpuPtr(), winSize, ImVec2(smaller, smaller));
+				ImVec2 winSize = ImGui::GetWindowSize();
+				float smaller = (std::min)(winSize.x - 20, winSize.y - 36);
+				ImGui::Image(m_DebugShadowMapSRV.GetCpuPtr(), winSize, ImVec2(smaller, smaller));
 			}
 			ImGui::End();
-		}
+		}*/
 		
 		BaseImGuiManager<ImguiManager>::RenderImGui(cmdList);
 	}

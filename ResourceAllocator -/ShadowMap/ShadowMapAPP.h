@@ -64,7 +64,6 @@ namespace DSM {
 		std::unique_ptr<LitShader> m_LitShader;
 		std::unique_ptr<ShadowShader> m_ShadowShader;
 		std::unique_ptr<ShadowDebugShader> m_ShadowDebugShader;
-		D3D12DescriptorHandle m_ShadowMapDescriptor;
 		DirectX::XMMATRIX m_ShadowTrans;
 		
 		

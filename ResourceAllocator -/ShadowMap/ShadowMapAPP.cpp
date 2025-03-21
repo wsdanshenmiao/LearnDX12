@@ -76,6 +76,7 @@ namespace DSM {
 	void ShadowMapAPP::OnRender(const CpuTimer& timer)
 	{
 		auto& lightManager = LightManager::GetInstance();
+		auto& imgui = ImguiManager::GetInstance();
 
 		
 		auto& cmdListAlloc = m_CurrFrameResource->m_CmdListAlloc;
@@ -105,7 +106,6 @@ namespace DSM {
 		// 若视锥为nullptr则全部清空
 		m_CommandList->ClearRenderTargetView(currBackBV, Colors::Pink, 0, nullptr);
 		m_CommandList->ClearDepthStencilView(dsv, D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 1, 0, 0, nullptr);
-
 		m_CommandList->OMSetRenderTargets(1, &currBackBV, true, &dsv);
 		
 
@@ -113,8 +113,7 @@ namespace DSM {
 		RenderScene(RenderLayer::Opaque);
 
 
-		//m_ShadowDebugShader->SetTexture(m_ShadowMapDescriptor);		
-		//m_ShadowDebugShader->Apply(m_CommandList.Get(), m_CurrFrameResource);
+
 		ImguiManager::GetInstance().RenderImGui(m_CommandList.Get());
 
 		// 将资源转换为呈现状态
@@ -413,6 +412,8 @@ namespace DSM {
 
 	void ShadowMapAPP::CreateDescriptor()
 	{
+		auto& imgui = ImguiManager::GetInstance();
+		
 		// 创建ShadowMap
 		D3D12_RESOURCE_DESC shadowMapDesc = {};
 		shadowMapDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
@@ -432,13 +433,6 @@ namespace DSM {
 			D3D12_RESOURCE_STATE_GENERIC_READ,
 			m_ShadowMap->m_ResourceLocation,
 			&optClear);
-		D3D12ResourceLocation debugShadowMap;
-		m_RTOrDSAllocator->Allocate(
-			shadowMapDesc,
-			D3D12_RESOURCE_STATE_GENERIC_READ,
-			debugShadowMap,
-			&optClear);
-		
 
 		// 创建ShadowMap的视图
 		auto pResource = m_ShadowMap->GetResource()->m_Resource.Get();
@@ -450,11 +444,6 @@ namespace DSM {
 		auto srvHandle = m_ShaderDescriptorHeap->Allocate(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 		m_D3D12Device->CreateShaderResourceView(pResource, &srvDesc, srvHandle);
 		m_ShadowMap->m_SrvHandle = srvHandle;
-
-		auto debugHandle = m_ShaderDescriptorHeap->Allocate(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-		m_D3D12Device->CreateShaderResourceView(
-			debugShadowMap.m_UnderlyingResource->m_Resource.Get(), &srvDesc, debugHandle);
-		m_ShadowMapDescriptor = debugHandle;
 		
 		D3D12_DEPTH_STENCIL_VIEW_DESC dsvDesc = {};
 		dsvDesc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D;
@@ -462,6 +451,28 @@ namespace DSM {
 		auto dsvhandle = m_ShaderDescriptorHeap->Allocate(D3D12_DESCRIPTOR_HEAP_TYPE_DSV);
 		m_D3D12Device->CreateDepthStencilView(pResource, &dsvDesc, dsvhandle);
 		m_ShadowMap->m_DsvHandle = dsvhandle;
+
+
+		/*// 创建用于Debug的资源及视图
+		D3D12ResourceLocation debugShadowMap;
+		auto debugResourceDesc = shadowMapDesc;
+		debugResourceDesc.Format = DXGI_FORMAT_R8G8B8A8_UINT;
+		debugResourceDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
+		m_RTOrDSAllocator->Allocate(debugResourceDesc, D3D12_RESOURCE_STATE_RENDER_TARGET, debugShadowMap);
+		auto debugResource = debugShadowMap.m_UnderlyingResource->m_Resource.Get();
+		
+		D3D12_RENDER_TARGET_VIEW_DESC rtvDesc = {};
+		rtvDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+		rtvDesc.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2D;
+		auto debugRTV = m_ShaderDescriptorHeap->Allocate(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
+		m_D3D12Device->CreateRenderTargetView(debugResource, &rtvDesc, debugRTV);
+		imgui.m_DebugShadowMapRTV = debugRTV;
+			
+		D3D12_SHADER_RESOURCE_VIEW_DESC debugSRVDesc = srvDesc;
+		debugSRVDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+		auto debugSRV = m_ShaderDescriptorHeap->Allocate(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+		m_D3D12Device->CreateShaderResourceView(debugResource, &debugSRVDesc, debugSRV);
+		imgui.m_DebugShadowMapSRV = debugSRV;*/
 	}
 
 	void ShadowMapAPP::UpdatePassCB(const CpuTimer& timer)
