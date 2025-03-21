@@ -4,10 +4,14 @@
 
 #include "BaseImGuiManager.h"
 #include "Transform.h"
+#include "D3D12DescriptorHeap.h"
 
 namespace DSM {
 	class ImguiManager : public BaseImGuiManager<ImguiManager>
 	{
+	public:
+		void RenderImGui(ID3D12GraphicsCommandList* cmdList) override;
+		
 	protected:
 		friend BaseImGuiManager::BaseType;
 		ImguiManager() = default;
@@ -16,16 +20,15 @@ namespace DSM {
 		void UpdateImGui(const CpuTimer& timer) override;
 
 	public:
-		Transform m_Transform;
-		float m_Radius = 50.0f, m_Fov = DirectX::XM_PIDIV2;
-		bool m_Animate = false;
 		bool m_EnableWireFrame = false;
+		bool m_EnableDebug = true;
 		float m_FogStart = 10;
 		float m_FogRange = 100;
 		DirectX::XMFLOAT3 m_FogColor = DirectX::XMFLOAT3(1, 1, 1);
 		DirectX::XMFLOAT3 m_LightDir;
 		DirectX::XMFLOAT3 m_LightColor;
-		DirectX::XMFLOAT3 m_EyePos{};
+
+		D3D12DescriptorHandle m_DebugShadowMapHandle;
 	};
 }
 

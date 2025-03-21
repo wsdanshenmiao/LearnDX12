@@ -68,8 +68,8 @@ namespace DSM {
 	}
 
 
-	D3D12DescriptorHeap::D3D12DescriptorHeap(ID3D12Device* device, std::uint32_t descriptorSize)
-		:m_Device(device), m_DescriptorSize(descriptorSize) {
+	D3D12DescriptorHeap::D3D12DescriptorHeap(ID3D12Device* device)
+		:m_Device(device) {
 		assert(device != nullptr);
 	}
 
@@ -193,8 +193,7 @@ namespace DSM {
 
 		for (int i = 0; i < m_DescriptorHeaps.size(); ++i) {
 			auto& heap = m_DescriptorHeaps[i];
-			auto size = device->GetDescriptorHandleIncrementSize(static_cast<D3D12_DESCRIPTOR_HEAP_TYPE>(i));
-			heap = std::make_unique<D3D12DescriptorHeap>(device, size);
+			heap = std::make_unique<D3D12DescriptorHeap>(device);
 			auto heapType = static_cast<D3D12_DESCRIPTOR_HEAP_TYPE>(i);
 			heap->Create(L"D3D12DescriptorCache" + AnsiToWString(typeid(heapType).name()), heapType, maxCount);
 		}
@@ -216,13 +215,21 @@ namespace DSM {
 		return m_DescriptorHeaps[index]->AllocateAndCopy(srcHandle);
 	}
 
-	D3D12DescriptorHandle D3D12DescriptorCache::AllocateAndCreateSRV(
-		ID3D12Resource* resource,
-		const D3D12_SHADER_RESOURCE_VIEW_DESC& desc)
+	D3D12DescriptorHandle D3D12DescriptorCache::Allocate(D3D12_DESCRIPTOR_HEAP_TYPE heapType)
 	{
-		auto handle = m_DescriptorHeaps[static_cast<int>(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV)]->Allocate();
-		m_Device->CreateShaderResourceView(resource, &desc, handle);
+		auto index = static_cast<int>(heapType);
+		assert(index < m_DescriptorHeaps.size());
+		return m_DescriptorHeaps[index]->Allocate();
+	}
+
+	D3D12DescriptorHandle D3D12DescriptorCache::AllocateAndCreateSRV(ID3D12Resource* resource, const D3D12_SHADER_RESOURCE_VIEW_DESC& srvDesc)
+	{
+		auto index = static_cast<int>(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+		assert(index < m_DescriptorHeaps.size());
+		auto handle = m_DescriptorHeaps[index]->Allocate();
+		m_Device->CreateShaderResourceView(resource, &srvDesc, handle);
 		return handle;
+
 	}
 
 	void D3D12DescriptorCache::Clear()

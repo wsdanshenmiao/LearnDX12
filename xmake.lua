@@ -12,7 +12,7 @@ if is_os("windows") then
 end
 
 add_rules("mode.debug", "mode.release")
-
+set_defaultmode("debug")
 set_languages("c99", "cxx20")
 set_toolchains("msvc")
 set_encodings("utf-8")

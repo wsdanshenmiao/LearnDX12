@@ -8,6 +8,7 @@ ConstantBuffer<Lights> gLightCB : register(b2);
 ConstantBuffer<MaterialConstants> gMatCB : register(b3);
 
 Texture2D gDiffuse : register(t0);
+Texture2D gShadowMap : register(t1);
 
 SamplerState gSamplerPointWrap          : register(s0);
 SamplerState gSamplerLinearWrap         : register(s1);
@@ -15,20 +16,22 @@ SamplerState gSamplerAnisotropicWrap    : register(s2);
 SamplerState gSamplerPointClamp         : register(s3);
 SamplerState gSamplerLinearClamp        : register(s4);
 SamplerState gSamplerAnisotropicClamp   : register(s5);
+SamplerComparisonState gSamplerShadowBorder : register(s6);
 
-VertexPosWHNormalWTex VS(VertexPosLNormalLTex v)
+VertexPosWHNormalWTexShadow VS(VertexPosLNormalLTex v)
 {
-    VertexPosWHNormalWTex o;
+    VertexPosWHNormalWTexShadow o;
     float4x4 viewProj = mul(gPassCB.View, gPassCB.Proj);
     float4 posW = mul(float4(v.PosL, 1), gObjCB.World);
     o.PosH = mul(posW, viewProj);
     o.PosW = posW.xyz;
     o.NormalW = mul(float4(v.NormalL, 1), gObjCB.WorldInvTranspose).xyz;
     o.TexCoord = v.TexCoord;
+    o.ShadowPosH = mul(float4(v.PosL, 1), gPassCB.ShadowTrans);
     return o;
 }
 
-float4 PS(VertexPosWHNormalWTex i) : SV_Target
+float4 PS(VertexPosWHNormalWTexShadow i) : SV_Target
 {
     float4 diffuseAlbedo = gDiffuse.Sample(gSamplerAnisotropicWrap, i.TexCoord);
     float alpha = diffuseAlbedo.a * gMatCB.Alpha;
@@ -43,10 +46,12 @@ float4 PS(VertexPosWHNormalWTex i) : SV_Target
     float3 normal = normalize(i.NormalW);
     
     float shadowFactor[MAXDIRLIGHTCOUNT];
+    float3 shadowPosH = i.ShadowPosH.xyz / i.ShadowPosH.w;
     [unroll]
     for (int index = 0; index < MAXDIRLIGHTCOUNT; ++index)
     {
-        shadowFactor[index] = 1;
+        shadowFactor[index] = gShadowMap.SampleCmpLevelZero(gSamplerShadowBorder, shadowPosH.xy, shadowPosH.z).r;
+        //shadowFactor[index] = 1;
     }
     float3 col = ComputeLighting(gLightCB, gMatCB, viewDir, normal, i.PosW, shadowFactor);
     col += gMatCB.Ambient;

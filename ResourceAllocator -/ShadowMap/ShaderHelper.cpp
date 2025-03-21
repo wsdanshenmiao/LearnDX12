@@ -236,7 +236,7 @@ namespace DSM {
 
 	private:
 		void CreateRootSignature(ID3D12Device* device);
-		const std::array<const D3D12_STATIC_SAMPLER_DESC, 6> CreateStaticSamplers() const noexcept;
+		const std::array<const D3D12_STATIC_SAMPLER_DESC, 7> CreateStaticSamplers() const noexcept;
 
 	};
 
@@ -389,11 +389,6 @@ namespace DSM {
 		auto info = m_ShaderInfos[static_cast<int>(type)];
 		if (info != nullptr) {
 			if (auto it = info->m_ConstantBufferVariable.find(paramName); it != info->m_ConstantBufferVariable.end()) {
-				/*auto ret = std::make_shared<ConstantBufferVariable>();
-				ret->m_Name = paramName;
-				ret->m_ByteSize = it->second->m_ByteSize;
-				ret->m_StartOffset = it->second->m_StartOffset;
-				ret->m_ConstantBuffer = it->second->m_ConstantBuffer;*/
 				return it->second;
 			}
 		}
@@ -481,9 +476,11 @@ namespace DSM {
 
 		// 绑定常量缓冲区
 		for (auto& [bindPoint, cb] : m_CBuffers) {
-			cb.UpdateBuffer();
-			cmdList->SetGraphicsRootConstantBufferView(
-				m_CBVSignatureBindSlot + bindPoint, cb.m_Resource->m_GPUVirtualAddress);
+			if (cb.m_Resource != nullptr) {
+				cb.UpdateBuffer();
+				cmdList->SetGraphicsRootConstantBufferView(
+					m_CBVSignatureBindSlot + bindPoint, cb.m_Resource->m_GPUVirtualAddress);
+			}
 		}
 		// 绑定着色器参数中的常量缓冲区
 		for (auto& shaderInfo : m_ShaderInfos) {
@@ -554,7 +551,10 @@ namespace DSM {
 			rootParameter.Constants.RegisterSpace = cb.m_RegisterSpace;
 			params[bindPoint] = std::move(rootParameter);
 		}
-
+		
+		// 由于根参数储存的是描述符范围的指针，因此需要额外储存下来，否则会使其变成悬空指针
+		std::vector<D3D12_DESCRIPTOR_RANGE> srvDescriptorRanges{};
+		srvDescriptorRanges.reserve(m_ShaderResources.size());
 		m_SRVSignatureBindSlot = m_CBVSignatureBindSlot + m_CBuffers.size();
 		for (const auto& [bindPoint, sr] : m_ShaderResources) {
 			D3D12_ROOT_PARAMETER rootParameter{};
@@ -564,13 +564,16 @@ namespace DSM {
 			texTable.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
 			texTable.RegisterSpace = sr.m_RegisterSpace;
 			texTable.OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
+			auto& range = srvDescriptorRanges.emplace_back(std::move(texTable));;
 			rootParameter.ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
 			rootParameter.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
 			rootParameter.DescriptorTable.NumDescriptorRanges = 1;
-			rootParameter.DescriptorTable.pDescriptorRanges = &texTable;
+			rootParameter.DescriptorTable.pDescriptorRanges = &range;
 			params[m_SRVSignatureBindSlot + bindPoint] = std::move(rootParameter);
 		}
 
+		std::vector<D3D12_DESCRIPTOR_RANGE> uavDescriptorRanges{};
+		uavDescriptorRanges.reserve(m_RWResources.size());
 		m_UAVSignatureBindSlot = m_SRVSignatureBindSlot + m_ShaderResources.size();
 		for (const auto& [bindPoint, rw] : m_RWResources) {
 			D3D12_ROOT_PARAMETER rootParameter{};
@@ -580,10 +583,11 @@ namespace DSM {
 			texTable.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_UAV;
 			texTable.RegisterSpace = rw.m_RegisterSpace;
 			texTable.OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
+			auto& range = uavDescriptorRanges.emplace_back(std::move(texTable));
 			rootParameter.ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
 			rootParameter.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
 			rootParameter.DescriptorTable.NumDescriptorRanges = 1;
-			rootParameter.DescriptorTable.pDescriptorRanges = &texTable;
+			rootParameter.DescriptorTable.pDescriptorRanges = &range;
 			params[m_UAVSignatureBindSlot + bindPoint] = std::move(rootParameter);
 		}
 
@@ -603,11 +607,11 @@ namespace DSM {
 			D3D_ROOT_SIGNATURE_VERSION_1,
 			serializedBlob.GetAddressOf(),
 			errorBlob.GetAddressOf());
-		ThrowIfFailed(hr);
-
 		if (errorBlob != nullptr) {
 			OutputDebugStringA((char*)errorBlob->GetBufferPointer());
 		}
+		
+		ThrowIfFailed(hr);
 
 		// 创建根签名
 		ThrowIfFailed(device->CreateRootSignature(0,
@@ -616,7 +620,7 @@ namespace DSM {
 			IID_PPV_ARGS(m_pRootSignature.GetAddressOf())));
 	}
 
-	const std::array<const D3D12_STATIC_SAMPLER_DESC, 6> ShaderPass::CreateStaticSamplers() const noexcept
+	const std::array<const D3D12_STATIC_SAMPLER_DESC, 7> ShaderPass::CreateStaticSamplers() const noexcept
 	{
 		// 创建六种静态采样器
 		D3D12_STATIC_SAMPLER_DESC staticSampler{};
@@ -657,7 +661,22 @@ namespace DSM {
 		staticSampler.Filter = D3D12_FILTER_MIN_MAG_MIP_POINT;
 		const auto pointClamp = staticSampler;
 
-		return { pointWarp, linearWarp, anisotropicWarp, pointClamp, linearClamp, anisotropicClamp };
+		D3D12_STATIC_SAMPLER_DESC shadow{};
+		shadow.Filter = D3D12_FILTER_COMPARISON_MIN_MAG_LINEAR_MIP_POINT;
+		shadow.AddressU = D3D12_TEXTURE_ADDRESS_MODE_BORDER;
+		shadow.AddressV = D3D12_TEXTURE_ADDRESS_MODE_BORDER;
+		shadow.AddressW = D3D12_TEXTURE_ADDRESS_MODE_BORDER;
+		shadow.MipLODBias = 0;
+		shadow.MaxAnisotropy = 16;
+		shadow.ComparisonFunc = D3D12_COMPARISON_FUNC_LESS_EQUAL;
+		shadow.MinLOD = 0;
+		shadow.MaxLOD = D3D12_FLOAT32_MAX;
+		shadow.BorderColor = D3D12_STATIC_BORDER_COLOR_OPAQUE_BLACK;
+		shadow.ShaderRegister = 6;
+		shadow.RegisterSpace = 0;
+		shadow.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+
+		return { pointWarp, linearWarp, anisotropicWarp, pointClamp, linearClamp, anisotropicClamp, shadow };
 	}
 #pragma endregion
 
@@ -776,7 +795,7 @@ namespace DSM {
 		ID3D12ShaderReflectionConstantBuffer* CBReflection = shaderReflection->GetConstantBufferByName(bindDesc.Name);
 		D3D12_SHADER_BUFFER_DESC CBDesc;
 		ThrowIfFailed(CBReflection->GetDesc(&CBDesc));
-		
+
 		auto infoName = std::to_string(static_cast<int>(shaderType)) + name;
 		auto& shaderInfo = m_ShaderInfo;
 
@@ -790,12 +809,9 @@ namespace DSM {
 		// 判断该常量缓冲区是否是参数常量缓冲区
 		if (noParams) {
 			// 不是参数CB,则在PassHelper中创建
-			if (auto it = m_ConstantBuffers.find(bindDesc.BindPoint); it == m_ConstantBuffers.end()) {
+			if (auto it = m_ConstantBuffers.find(bindDesc.BindPoint);
+				it == m_ConstantBuffers.end() || it->second.m_Data.size() < CBDesc.Size) {
 				// 不存在则新建
-				m_ConstantBuffers.emplace(std::make_pair(bindDesc.BindPoint, std::move(constantBuffer)));
-			}
-			else if (it->second.m_Data.size() < CBDesc.Size) {
-				// 存在但是大小比反射的小，可能是宏导致的
 				m_ConstantBuffers[bindDesc.BindPoint] = std::move(constantBuffer);
 			}
 
@@ -810,13 +826,13 @@ namespace DSM {
 		if (CBDesc.Variables < 1)return;
 
 		ID3D12ShaderReflectionVariable* pSRVar = CBReflection->GetVariableByIndex(0);
-		
+
 		D3D12_SHADER_TYPE_DESC typeDesc;
 		ID3D12ShaderReflectionType* reflectionType = pSRVar->GetType();
 		ThrowIfFailed(reflectionType->GetDesc(&typeDesc));
 		// 检测缓冲区的类型是否为结构体
 		bool isStruct = typeDesc.Class == D3D_SVC_STRUCT;
-		
+
 		// 获取常量缓冲区中的所有变量
 		std::uint32_t preOffset = 0;
 		std::uint32_t numVar = isStruct ? typeDesc.Members : CBDesc.Variables;
@@ -825,11 +841,11 @@ namespace DSM {
 		for (std::uint32_t i = 0; i < numVar; i++) {
 			// 获取变量信息
 			D3D12_SHADER_VARIABLE_DESC varDesc;
-			
-			std::uint32_t varSize =0;
+
+			std::uint32_t varSize = 0;
 			std::uint32_t varOffset = 0;
 			std::string varName{};
-			
+
 			// 处理两种语法导致反射的结果不同
 			if (isStruct) {
 				ID3D12ShaderReflectionType* memberType = reflectionType->GetMemberTypeByIndex(i);
@@ -841,7 +857,7 @@ namespace DSM {
 				varSize = 0;
 				varOffset = memberTypeDesc.Offset;
 				// 当前变量的名字和前一个变量的大小
-				sizeQueue.push({varName, varOffset - preOffset});
+				sizeQueue.push({ varName, varOffset - preOffset });
 				preOffset = varOffset;
 			}
 			else {
@@ -875,7 +891,7 @@ namespace DSM {
 			auto prePair = sizeQueue.front();
 			std::string lastName = sizeQueue.back().first;
 			sizeQueue.pop();
-			for (;!sizeQueue.empty(); sizeQueue.pop()) {
+			for (; !sizeQueue.empty(); sizeQueue.pop()) {
 				auto varPair = sizeQueue.front();
 				m_ConstantBufferVariables[prePair.first]->m_ByteSize = varPair.second;
 				prePair = varPair;
@@ -1118,7 +1134,7 @@ namespace DSM {
 		}
 
 		m_Impl->GetShaderInfo(shaderDesc.m_ShaderName, shaderDesc.m_Type, reflection.Get());
-		
+
 		m_Impl->m_ShaderInfo[shaderInfoName]->m_pShader = byteCode;
 
 		m_Impl->m_ShaderPassByteCode[shaderDesc.m_FileName] = byteCode;
@@ -1203,7 +1219,7 @@ namespace DSM {
 		ComPtr<IDxcBlob> pShader = nullptr;
 		ComPtr<IDxcBlobUtf16> pShaderName = nullptr;
 		ThrowIfFailed(pResults->GetOutput(DXC_OUT_OBJECT, IID_PPV_ARGS(&pShader), &pShaderName));
-		
+
 		if (reflection != nullptr) {
 			ComPtr<IDxcContainerReflection> pContainerReflection = nullptr;
 			ThrowIfFailed(DxcCreateInstance(CLSID_DxcContainerReflection, IID_PPV_ARGS(&pContainerReflection)));
@@ -1212,7 +1228,7 @@ namespace DSM {
 			ThrowIfFailed(pContainerReflection->FindFirstPartKind(DXC_PART_DXIL, &reflectIndex));
 			ThrowIfFailed(pContainerReflection->GetPartReflection(reflectIndex, IID_PPV_ARGS(reflection)));
 		}
-		
+
 		ComPtr<ID3DBlob> pByteCode = nullptr;
 		ThrowIfFailed(pShader->QueryInterface(IID_PPV_ARGS(pByteCode.GetAddressOf())));
 

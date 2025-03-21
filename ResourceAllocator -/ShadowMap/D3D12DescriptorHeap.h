@@ -40,7 +40,7 @@ namespace DSM {
     class D3D12DescriptorHeap
     {
     public:
-        D3D12DescriptorHeap(ID3D12Device* device, std::uint32_t descriptorSize);
+        D3D12DescriptorHeap(ID3D12Device* device);
         ~D3D12DescriptorHeap();
 
         // 创建描述符堆
@@ -81,7 +81,7 @@ namespace DSM {
         D3D12DescriptorHandle AllocateAndCopy(
             D3D12_DESCRIPTOR_HEAP_TYPE heapType,
             const std::vector<D3D12_CPU_DESCRIPTOR_HANDLE>& srcHandle);
-        D3D12DescriptorHandle AllocateAndCreateSRV(ID3D12Resource* resource, const D3D12_SHADER_RESOURCE_VIEW_DESC& desc);
+        D3D12DescriptorHandle Allocate(D3D12_DESCRIPTOR_HEAP_TYPE heapType);
         void Clear();
         
     private:

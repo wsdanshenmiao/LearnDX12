@@ -319,8 +319,11 @@ namespace DSM {
 		m_TextureAllocator = std::make_unique<D3D12MultiBuddyAllocator>(m_Device.Get(), initData);
 	}
 
-	void D3D12TextureAllocator::AllocateTexture(const D3D12_RESOURCE_DESC& textureDesc,
-		const D3D12_RESOURCE_STATES& textureState, D3D12ResourceLocation& resourceLocation)
+	void D3D12TextureAllocator::AllocateTexture(
+		const D3D12_RESOURCE_DESC& textureDesc,
+		const D3D12_RESOURCE_STATES& textureState,
+		D3D12ResourceLocation& resourceLocation,
+		const D3D12_CLEAR_VALUE* clearValue)
 	{
 		// 获取在堆中的偏移
 		auto texInfo = m_Device->GetResourceAllocationInfo(0, 1, &textureDesc);
@@ -328,12 +331,12 @@ namespace DSM {
 
 		// 在堆中分配资源
 		ComPtr<ID3D12Resource> resource;
-		m_Device->CreatePlacedResource(resourceLocation.m_Allocator->GetHeap(),
+		ThrowIfFailed(m_Device->CreatePlacedResource(resourceLocation.m_Allocator->GetHeap(),
 			resourceLocation.m_OffsetFromBaseOfHeap,
 			&textureDesc,
 			textureState,
-			nullptr,
-			IID_PPV_ARGS(resource.GetAddressOf()));
+			clearValue,
+			IID_PPV_ARGS(resource.GetAddressOf())));
 		auto texResource = std::make_shared<D3D12Resource>(resource.Get());
 		resourceLocation.m_UnderlyingResource = texResource.get();
 		resourceLocation.m_BlockData.m_PlacedResource = texResource;
@@ -343,5 +346,45 @@ namespace DSM {
 	void D3D12TextureAllocator::ClearUpAllocations()
 	{
 		m_TextureAllocator->ClearUpAllocations();
+	}
+
+	D3D12RTOrDSAllocator::D3D12RTOrDSAllocator(ID3D12Device* device)
+	:m_Device(device) {
+		D3D12BuddyAllocator::AllocatorInitData initData{};
+		initData.m_HeapFlags = D3D12_HEAP_FLAG_ALLOW_ONLY_RT_DS_TEXTURES;
+		initData.m_HeapType = D3D12_HEAP_TYPE_DEFAULT;
+		initData.m_ResourceFlags = D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL | D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
+		initData.m_Strategy = D3D12BuddyAllocator::AllocationStrategy::PlacedResource;
+
+		m_Allocator = std::make_unique<D3D12MultiBuddyAllocator>(m_Device.Get(), initData);
+	}
+
+	void D3D12RTOrDSAllocator::Allocate(
+		const D3D12_RESOURCE_DESC& textureDesc,
+		const D3D12_RESOURCE_STATES& textureState,
+		D3D12ResourceLocation& resourceLocation,
+		const D3D12_CLEAR_VALUE* clearValue)
+	{
+		// 获取在堆中的偏移
+		auto texInfo = m_Device->GetResourceAllocationInfo(0, 1, &textureDesc);
+		m_Allocator->Allocate(texInfo.SizeInBytes, D3D12_DEFAULT_RESOURCE_PLACEMENT_ALIGNMENT, resourceLocation);
+
+		// 在堆中分配资源
+		ComPtr<ID3D12Resource> resource;
+		ThrowIfFailed(m_Device->CreatePlacedResource(resourceLocation.m_Allocator->GetHeap(),
+			resourceLocation.m_OffsetFromBaseOfHeap,
+			&textureDesc,
+			textureState,
+			clearValue,
+			IID_PPV_ARGS(resource.GetAddressOf())));
+		auto texResource = std::make_shared<D3D12Resource>(resource.Get());
+		resourceLocation.m_UnderlyingResource = texResource.get();
+		resourceLocation.m_BlockData.m_PlacedResource = texResource;
+		resourceLocation.m_GPUVirtualAddress = resourceLocation.m_UnderlyingResource->m_Resource->GetGPUVirtualAddress();
+	}
+
+	void D3D12RTOrDSAllocator::ClearUpAllocations()
+	{
+		m_Allocator->ClearUpAllocations();
 	}
 }

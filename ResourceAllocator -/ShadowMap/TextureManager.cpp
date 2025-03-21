@@ -24,6 +24,7 @@ namespace DSM {
 			m_TextureAllocator.get(),
 			m_UploadBufferAllocator.get());
 		if (sucess) {
+			CreateSRV(tex);
 			tex.SetDescriptorIndex(m_Textures.size());
 			m_Textures[name] = std::move(tex);
 		}
@@ -44,6 +45,7 @@ namespace DSM {
 			m_TextureAllocator.get(),
 			m_UploadBufferAllocator.get());
 		if (sucess) {
+			CreateSRV(tex);
 			tex.SetDescriptorIndex(m_Textures.size());
 			m_Textures[name] = std::move(tex);
 		}
@@ -72,54 +74,22 @@ namespace DSM {
 		return m_Textures;
 	}
 
-	D3D12_GPU_DESCRIPTOR_HANDLE TextureManager::GetTextureResourceView(
-		const std::string& texName,
-		UINT descriptorSize) const
+	D3D12DescriptorHandle TextureManager::GetTextureResourceView(const std::string& texName) const
 	{
-		auto handle = m_TexDescriptorHeap->GetGPUDescriptorHandleForHeapStart();
+		auto defaultTex = "DefaultTexture";
 		// 若是不包含该纹理则返回第一个纹理
 		if (m_Textures.contains(texName)) {
-			handle.ptr += m_Textures.find(texName)->second.GetDescriptorIndex() * descriptorSize;
+			return m_Textures.find(texName)->second.GetSRV();
 		}
 		else {
-			handle.ptr += m_Textures.find("DefaultTexture")->second.GetDescriptorIndex() * descriptorSize;
-		}
-		return handle;
-	}
-
-	ID3D12DescriptorHeap* TextureManager::GetDescriptorHeap() const
-	{
-		return  m_TexDescriptorHeap.Get();
-	}
-
-	void TextureManager::CreateTexDescriptor(UINT descriptorSize)
-	{
-		// 创建描述符堆
-		D3D12_DESCRIPTOR_HEAP_DESC desc{};
-		desc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
-		desc.NumDescriptors = m_Textures.size();
-		desc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
-		m_Device->CreateDescriptorHeap(&desc, IID_PPV_ARGS(m_TexDescriptorHeap.ReleaseAndGetAddressOf()));
-
-		D3D12_SHADER_RESOURCE_VIEW_DESC SRVDesc{};
-		SRVDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
-		SRVDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-		SRVDesc.Texture2D.MostDetailedMip = 0;
-		SRVDesc.Texture2D.ResourceMinLODClamp = 0;
-		for (auto& [name, tex] : m_Textures) {
-			auto& texResource = tex.GetTexture().m_UnderlyingResource->m_Resource;
-			SRVDesc.Format = texResource->GetDesc().Format;
-			SRVDesc.Texture2D.MipLevels = texResource->GetDesc().MipLevels;
-
-			auto handle=m_TexDescriptorHeap->GetCPUDescriptorHandleForHeapStart();
-			handle.ptr += tex.GetDescriptorIndex() * descriptorSize;
-			
-			m_Device->CreateShaderResourceView(texResource.Get() ,&SRVDesc,handle);
+			return m_Textures.find(defaultTex)->second.GetSRV();
 		}
 	}
 
 	TextureManager::TextureManager(ID3D12Device* device, ID3D12GraphicsCommandList* cmdList)
-		:m_Device(device) {
+		:m_Device(device), m_DescriptorHeap(std::make_unique<D3D12DescriptorHeap>(device)) {
+		m_DescriptorHeap->Create(L"TextureShaderResourceView", D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, 512);
+		
 		m_TextureAllocator = std::make_unique<D3D12TextureAllocator>(m_Device.Get());
 		m_UploadBufferAllocator = std::make_unique<D3D12UploadBufferAllocator>(m_Device.Get());
 		
@@ -189,7 +159,24 @@ namespace DSM {
 		whiteTexture.SetUploadHeap(uploadHeap);
 		whiteTexture.SetName("DefaultTexture");
 		whiteTexture.SetDescriptorIndex(m_Textures.size());
-		m_Textures[whiteTexture.GetName()] = whiteTexture;
+		CreateSRV(whiteTexture);
+		m_Textures[whiteTexture.GetName()] = std::move(whiteTexture);
 	}
 
+	void TextureManager::CreateSRV(Texture& texture)
+	{
+		D3D12_SHADER_RESOURCE_VIEW_DESC SRVDesc{};
+		SRVDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+		SRVDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+		SRVDesc.Texture2D.MostDetailedMip = 0;
+		SRVDesc.Texture2D.ResourceMinLODClamp = 0;
+		auto& texResource = texture.GetTexture().m_UnderlyingResource->m_Resource;
+		SRVDesc.Format = texResource->GetDesc().Format;
+		SRVDesc.Texture2D.MipLevels = texResource->GetDesc().MipLevels;
+			
+		auto handle = m_DescriptorHeap->Allocate();
+		texture.SetSRVHandle(handle);
+		m_Device->CreateShaderResourceView(
+			texture.GetTexture().m_UnderlyingResource->m_Resource.Get(), &SRVDesc, handle);
+	}
 }

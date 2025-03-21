@@ -3,7 +3,6 @@
 #define __LIGHTSHADER__H__
 
 #include "IShader.h"
-#include "ConstantData.h"
 
 namespace DSM{
     class LitShader : public IShader
@@ -26,6 +25,7 @@ namespace DSM{
         void SetPointLights(std::size_t byteSize, const void* lightData);
         void SetSpotLights(std::size_t byteSize, const void* lightData);
         void SetTexture(const D3D12DescriptorHandle& texture);
+        void SetShadowMap(const D3D12DescriptorHandle& shadowMap);
         
         virtual void Apply(ID3D12GraphicsCommandList* cmdList, FrameResource* frameResource) override;
     };

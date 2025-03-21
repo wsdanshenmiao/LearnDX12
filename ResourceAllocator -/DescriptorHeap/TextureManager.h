@@ -25,7 +25,7 @@ namespace DSM {
 			ID3D12GraphicsCommandList* cmdList);
 		bool AddTexture(const std::string& name, Texture&& texture);
 
-		size_t GetTextureSize() const noexcept;
+		size_t GetTextureCount() const noexcept;
 		const std::unordered_map<std::string, Texture>& GetAllTextures() noexcept;
 		D3D12DescriptorHandle GetTextureResourceView(const std::string& texName) const;
 		ID3D12DescriptorHeap* GetDescriptorHeap() const;

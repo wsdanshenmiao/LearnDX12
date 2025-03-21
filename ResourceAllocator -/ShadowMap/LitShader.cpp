@@ -68,6 +68,7 @@ namespace DSM {
         m_ShaderHelper->GetConstantBufferVariable("InvView")->SetMatrix(passConstants.m_InvView);
         m_ShaderHelper->GetConstantBufferVariable("Proj")->SetMatrix(passConstants.m_Proj);
         m_ShaderHelper->GetConstantBufferVariable("InvProj")->SetMatrix(passConstants.m_InvProj);
+        m_ShaderHelper->GetConstantBufferVariable("ShadowTrans")->SetMatrix(passConstants.m_ShadowTrans);
         m_ShaderHelper->GetConstantBufferVariable("EyePosW")->SetFloat3(passConstants.m_EyePosW);
         m_ShaderHelper->GetConstantBufferVariable("FogStart")->SetFloat(passConstants.m_FogStart);
         m_ShaderHelper->GetConstantBufferVariable("FogColor")->SetFloat3(passConstants.m_FogColor);
@@ -107,6 +108,11 @@ namespace DSM {
     void LitShader::SetTexture(const D3D12DescriptorHandle& texture)
     {
         m_ShaderHelper->SetShaderResourceByName("gDiffuse", { texture });
+    }
+
+    void LitShader::SetShadowMap(const D3D12DescriptorHandle& shadowMap)
+    {
+        m_ShaderHelper->SetShaderResourceByName("gShadowMap", { shadowMap });
     }
 
     void LitShader::Apply(ID3D12GraphicsCommandList* cmdList, FrameResource* frameResource)

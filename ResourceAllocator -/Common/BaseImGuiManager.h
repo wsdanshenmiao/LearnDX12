@@ -79,12 +79,12 @@ namespace DSM {
 	{
 		ImGuiNewFrame();
 		UpdateImGui(timer);
-		ImGui::Render();
 	}
 
 	template<typename Driver>
 	void BaseImGuiManager<Driver>::RenderImGui(ID3D12GraphicsCommandList* cmdList)
 	{
+		ImGui::Render();
 		cmdList->SetDescriptorHeaps(1, m_ImGuiSrvHeap.GetAddressOf());
 		ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), cmdList);
 	}

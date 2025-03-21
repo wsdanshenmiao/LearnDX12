@@ -62,7 +62,7 @@ namespace DSM {
 		}
 	}
 
-	size_t TextureManager::GetTextureSize() const noexcept
+	size_t TextureManager::GetTextureCount() const noexcept
 	{
 		return m_Textures.size();
 	}

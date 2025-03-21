@@ -5,6 +5,7 @@
 #include "Singleton.h"
 #include "Texture.h"
 #include "D3D12Allocatioin.h"
+#include "FrameResource.h"
 
 namespace DSM {
 	class TextureManager : public Singleton<TextureManager>
@@ -26,24 +27,22 @@ namespace DSM {
 
 		size_t GetTextureCount() const noexcept;
 		const std::unordered_map<std::string, Texture>& GetAllTextures() noexcept;
-		D3D12_GPU_DESCRIPTOR_HANDLE GetTextureResourceView(
-			const std::string& texName,
-			UINT descriptorSize) const;
+		D3D12DescriptorHandle GetTextureResourceView(const std::string& texName) const;
 		ID3D12DescriptorHeap* GetDescriptorHeap() const;
-
-		void CreateTexDescriptor(UINT descriptorSize);
 
 	protected:
 		friend class Singleton<TextureManager>;
 		TextureManager(ID3D12Device* device, ID3D12GraphicsCommandList* cmdList);
 		virtual ~TextureManager() = default;
 
+		void CreateSRV(Texture& texture);
+
 	protected:
 		Microsoft::WRL::ComPtr<ID3D12Device> m_Device;
-		Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> m_TexDescriptorHeap;
 		
 		std::unique_ptr<D3D12UploadBufferAllocator> m_UploadBufferAllocator;
 		std::unique_ptr<D3D12TextureAllocator> m_TextureAllocator;
+		std::unique_ptr<D3D12DescriptorHeap> m_DescriptorHeap;
 		
 		std::unordered_map<std::string, Texture> m_Textures;
 	};
