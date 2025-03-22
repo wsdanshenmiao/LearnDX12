@@ -318,7 +318,7 @@ namespace DSM {
 		m_ShaderDescriptorHeap = std::make_unique<D3D12DescriptorCache>(m_D3D12Device.Get());
 
 		m_SceneSphere.Center = XMFLOAT3(0.0f, 0.0f, 0.0f);
-		m_SceneSphere.Radius = std::sqrt(100 * 100 + 150 * 150);
+		m_SceneSphere.Radius = std::sqrt(50 * 50 + 40 * 40);
 		
 		CreateObject();
 		CreateTexture();
@@ -337,14 +337,14 @@ namespace DSM {
 		auto& modelManager = ModelManager::GetInstance();
 		auto& objManager = ObjectManager::GetInstance();
 
-		const Model* sponzaModel = modelManager.LoadModelFromeFile(
+		/*const Model* sponzaModel = modelManager.LoadModelFromeFile(
 			"Sponza",
 			"Models\\Sponza\\Sponza.gltf",
 			m_CommandList.Get());
 		auto sponza = std::make_shared<Object>(sponzaModel->GetName(), sponzaModel);
 		sponza->GetTransform().SetScale({ 0.1,0.1,0.1 });
-		sponza->GetTransform().SetRotation(0, MathHelper::PI / 2, 0);
-		objManager.AddObject(sponza, RenderLayer::Opaque);
+		sponza->GetTransform().SetRotation(0, MathHelper::PI / 2, 0);*/
+		//objManager.AddObject(sponza, RenderLayer::Opaque);
 
 		// 创建模型及物体
 		const Model* elenaModel = modelManager.LoadModelFromeFile(
@@ -355,7 +355,7 @@ namespace DSM {
 		objManager.AddObject(elena, RenderLayer::Opaque);
 
 		const Model* planeModel = modelManager.LoadModelFromeGeometry(
-			"Plane", GeometryGenerator::CreateGrid(100, 100, 2, 2));
+			"Plane", GeometryGenerator::CreateGrid(80, 80, 2, 2));
 		auto plane = std::make_shared<Object>(planeModel->GetName(), planeModel);
 		objManager.AddObject(plane, RenderLayer::Opaque);
 

@@ -43,7 +43,7 @@ namespace DSM {
 
 
 	public:
-		inline static constexpr UINT FrameCount = 1;
+		inline static constexpr UINT FrameCount = 3;
 
 
 	protected:

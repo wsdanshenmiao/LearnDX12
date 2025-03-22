@@ -27,7 +27,7 @@ VertexPosWHNormalWTexShadow VS(VertexPosLNormalLTex v)
     o.PosW = posW.xyz;
     o.NormalW = mul(float4(v.NormalL, 1), gObjCB.WorldInvTranspose).xyz;
     o.TexCoord = v.TexCoord;
-    o.ShadowPosH = mul(float4(v.PosL, 1), gPassCB.ShadowTrans);
+    o.ShadowPosH = mul(float4(o.PosW, 1), gPassCB.ShadowTrans);
     return o;
 }
 
