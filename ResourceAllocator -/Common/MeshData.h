@@ -65,7 +65,7 @@ namespace DSM {
 			ID3D12GraphicsCommandList* cmdList,
 			VertFunc vertFunc)
 		{
-			if (mesh.m_Vertices.empty() || mesh.m_Indices32.empty()) {
+			if (mesh.m_Vertices.empty()) {
 				return;
 			}
 
@@ -81,8 +81,10 @@ namespace DSM {
 
 			ThrowIfFailed(D3DCreateBlob(vbByteSize, m_VertexBufferCPU.GetAddressOf()));
 			memcpy(m_VertexBufferCPU->GetBufferPointer(), verticesData.data(), vbByteSize);
-			ThrowIfFailed(D3DCreateBlob(ibByteSize, m_IndexBufferCPU.GetAddressOf()));
-			memcpy(m_IndexBufferCPU->GetBufferPointer(), mesh.m_Indices32.data(), ibByteSize);
+			if (ibByteSize > 0) {
+				ThrowIfFailed(D3DCreateBlob(ibByteSize, m_IndexBufferCPU.GetAddressOf()));
+				memcpy(m_IndexBufferCPU->GetBufferPointer(), mesh.m_Indices32.data(), ibByteSize);
+			}
 
 			m_VertexByteStride = (UINT)sizeof(VertexData);
 			m_VertexBufferByteSize = (UINT)vbByteSize;
@@ -124,21 +126,23 @@ namespace DSM {
 				nullptr,
 				IID_PPV_ARGS(m_VertexBufferUploader.GetAddressOf())));
 
-			desc.Width = ibByteSize;
-			ThrowIfFailed(device->CreateCommittedResource(
-				&defaultHeapProps,
-				D3D12_HEAP_FLAG_NONE,
-				&desc,
-				D3D12_RESOURCE_STATE_COPY_DEST,
-				nullptr,
-				IID_PPV_ARGS(m_IndexBufferGPU.GetAddressOf())));
-			ThrowIfFailed(device->CreateCommittedResource(
-				&uploadHeapProps,
-				D3D12_HEAP_FLAG_NONE,
-				&desc,
-				D3D12_RESOURCE_STATE_COPY_SOURCE,
-				nullptr,
-				IID_PPV_ARGS(m_IndexBufferUploader.GetAddressOf())));
+			if (ibByteSize > 0) {
+				desc.Width = ibByteSize;
+				ThrowIfFailed(device->CreateCommittedResource(
+					&defaultHeapProps,
+					D3D12_HEAP_FLAG_NONE,
+					&desc,
+					D3D12_RESOURCE_STATE_COPY_DEST,
+					nullptr,
+					IID_PPV_ARGS(m_IndexBufferGPU.GetAddressOf())));
+				ThrowIfFailed(device->CreateCommittedResource(
+					&uploadHeapProps,
+					D3D12_HEAP_FLAG_NONE,
+					&desc,
+					D3D12_RESOURCE_STATE_COPY_SOURCE,
+					nullptr,
+					IID_PPV_ARGS(m_IndexBufferUploader.GetAddressOf())));
+			}
 
 			// 拷贝数据到上传堆中
 			BYTE* mappedData = nullptr;
@@ -148,11 +152,14 @@ namespace DSM {
 			// 将上传堆中的数据拷贝到默认堆中
 			cmdList->CopyBufferRegion(m_VertexBufferGPU.Get(), 0, m_VertexBufferUploader.Get(), 0, vbByteSize);
 
-			mappedData = nullptr;
-			ThrowIfFailed(m_IndexBufferUploader->Map(0, nullptr, reinterpret_cast<void**>(&mappedData)));
-			memcpy(mappedData, mesh.m_Indices32.data(), ibByteSize);
-			m_IndexBufferUploader->Unmap(0, nullptr);
-			cmdList->CopyBufferRegion(m_IndexBufferGPU.Get(), 0, m_IndexBufferUploader.Get(), 0, ibByteSize);
+			if (ibByteSize > 0) {
+				mappedData = nullptr;
+				ThrowIfFailed(m_IndexBufferUploader->Map(0, nullptr, reinterpret_cast<void**>(&mappedData)));
+				memcpy(mappedData, mesh.m_Indices32.data(), ibByteSize);
+				m_IndexBufferUploader->Unmap(0, nullptr);
+				cmdList->CopyBufferRegion(m_IndexBufferGPU.Get(), 0, m_IndexBufferUploader.Get(), 0, ibByteSize);
+		
+			}
 		}
 
 	}
