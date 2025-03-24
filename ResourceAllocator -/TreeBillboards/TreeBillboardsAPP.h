@@ -7,7 +7,7 @@
 #include "CameraController.h"
 #include "Buffer.h"
 #include "ConstantData.h"
-#include "TriangleShader.h"
+#include "Shader.h"
 
 namespace DSM {
 class Material;
@@ -27,16 +27,15 @@ class TreeBillboardsAPP : public D3D12App {
     void WaitForGPU();
     void RenderScene(RenderLayer layer);
     void RenderTriangle();
+    void RenderCylinder();
 
     bool InitResource();
 
     void CreateObject();
     void CreateTexture();
     void CreateFrameResource();
-    void CreateDescriptor();
 
     void UpdatePassCB(const CpuTimer& timer);
-    void UpdateShadowCB(const CpuTimer& timer);
     void UpdateLightCB(const CpuTimer& timer);
 
     MaterialConstants GetMaterialConstants(const Material& material);
@@ -62,6 +61,7 @@ class TreeBillboardsAPP : public D3D12App {
     std::unique_ptr<CameraController> m_CameraController;
 
     std::unique_ptr<TriangleShader> m_TriangleShader;
+    std::unique_ptr<CylinderShader> m_CylinderShader;
 	};
 
 

@@ -224,7 +224,7 @@ namespace DSM {
 		submeshData.m_StarIndexLocation = 0;
 
 		auto vertFunc = [](const Vertex& vert) {
-			VertexPosLNormalTex ret{};
+			VertexPosNormalTex ret{};
 			ret.m_Normal = vert.m_Normal;
 			ret.m_Pos = vert.m_Position;
 			ret.m_TexCoord = vert.m_TexCoord;
@@ -233,11 +233,11 @@ namespace DSM {
 
 		auto& meshManager = ModelManager::GetInstance();
 		meshManager.AddMesh("Box", std::move(boxMesh));
-		m_MeshData["Box"] = meshManager.GetAllMeshData<VertexPosLNormalTex>(
+		m_MeshData["Box"] = meshManager.GetAllMeshData<VertexPosNormalTex>(
 			m_D3D12Device.Get(), m_CommandList.Get(), "Box", vertFunc);
 		meshManager.ClearMesh();
 		meshManager.AddMesh("Box0", GeometryGenerator::CreateBox(100, 100, 100, 1));
-		m_MeshData["Box0"] = meshManager.GetAllMeshData<VertexPosLNormalTex>(
+		m_MeshData["Box0"] = meshManager.GetAllMeshData<VertexPosNormalTex>(
 			m_D3D12Device.Get(), m_CommandList.Get(), "Box", vertFunc);
 
 		m_RenderObjCount++;
@@ -456,8 +456,8 @@ namespace DSM {
 		psoDesc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
 		psoDesc.DepthStencilState = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
 		psoDesc.InputLayout = {
-			VertexPosLNormalTex::GetInputLayout().data(),
-			(UINT)VertexPosLNormalTex::GetInputLayout().size()
+			VertexPosNormalTex::GetInputLayout().data(),
+			(UINT)VertexPosNormalTex::GetInputLayout().size()
 		};
 		psoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
 		psoDesc.NumRenderTargets = 1;

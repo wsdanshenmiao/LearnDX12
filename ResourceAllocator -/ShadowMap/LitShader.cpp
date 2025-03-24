@@ -32,7 +32,7 @@ namespace DSM {
         passDesc.m_PSName = "LightsPS";
         m_ShaderHelper->AddShaderPass("Light", passDesc, m_Device.Get());
 
-        auto& inputLayout = VertexPosLNormalTex::GetInputLayout();
+        auto& inputLayout = VertexPosNormalTex::GetInputLayout();
         m_ShaderHelper->GetShaderPass("Light")->SetInputLayout({inputLayout.data(), (UINT)inputLayout.size()});
     }
 

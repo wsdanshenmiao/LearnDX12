@@ -1,6 +1,6 @@
 #pragma once
-#ifndef __SHADER__H__
-#define __SHADER__H__
+#ifndef __ISHADER__H__
+#define __ISHADER__H__
 
 #include <memory>
 #include "ShaderHelper.h"

@@ -1,4 +1,3 @@
-#include "DSMLighting.hlsli"
 #ifndef __TRIANGLE__HLSL__
 #define __TRIANGLE__HLSL__
 
@@ -33,7 +32,7 @@ float4 TrianglePS(VertexPosHColor i) : SV_Target
 //   /  \xx/  \
 //  /____\/____\
 // v0    v5    v2
-[maxvertexcount(9)]
+[maxvertexcount(12)]
 void TriangleGS(triangle VertexPosHColor input[3], inout TriangleStream<VertexPosHColor> output)
 {
     VertexPosHColor vertexes[6];
@@ -52,6 +51,11 @@ void TriangleGS(triangle VertexPosHColor input[3], inout TriangleStream<VertexPo
         output.Append(vertexes[(i + 2) % 3 + 3]);
         output.RestartStrip();
     }
+
+    output.Append(vertexes[5]);
+    output.Append(vertexes[4]);
+    output.Append(vertexes[3]);
+    output.RestartStrip();
 }
 
 #endif

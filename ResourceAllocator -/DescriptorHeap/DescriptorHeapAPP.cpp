@@ -170,7 +170,7 @@ namespace DSM {
 
 		for (const auto& [name, obj] : objManager.GetAllObject()[(int)layer]) {
 			if (auto model = obj->GetModel(); model != nullptr) {
-				const auto& meshData = modelManager.GetMeshData<VertexPosLNormalTex>(model->GetName());
+				const auto& meshData = modelManager.GetMeshData<VertexPosNormalTex>(model->GetName());
 				auto vertexBV = meshData->GetVertexBufferView();
 				auto indexBV = meshData->GetIndexBufferView();
 				m_CommandList->IASetVertexBuffers(0, 1, &vertexBV);
@@ -246,7 +246,7 @@ namespace DSM {
 
 
 					auto pass = m_ShaderHelper.GetShaderPass("Light");
-					auto inputLayout = VertexPosLNormalTex::GetInputLayout();
+					auto inputLayout = VertexPosNormalTex::GetInputLayout();
 					pass->SetInputLayout({ inputLayout.data(), inputLayout.size() });
 					pass->Apply(m_CommandList.Get(), m_D3D12Device.Get(), m_CurrFrameResource);
 
@@ -327,14 +327,14 @@ namespace DSM {
 
 		// 提前为所有模型生成网格数据
 		auto vertFunc = [](const Vertex& vert) {
-			VertexPosLNormalTex ret{};
+			VertexPosNormalTex ret{};
 			ret.m_Normal = vert.m_Normal;
 			ret.m_Pos = vert.m_Position;
 			ret.m_TexCoord = vert.m_TexCoord;
 			return ret;
 			};
 
-		modelManager.CreateMeshDataForAllModel<VertexPosLNormalTex>(
+		modelManager.CreateMeshDataForAllModel<VertexPosNormalTex>(
 			m_CommandList.Get(),
 			vertFunc);
 	}

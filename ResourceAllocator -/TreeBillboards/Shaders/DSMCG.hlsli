@@ -76,6 +76,21 @@ struct VertexPosWHNormalWTexShadow
     float4 ShadowPosH : TEXCOORD2;
 };
 
+struct VertexPosLNormalLColor
+{
+    float3 PosL : POSITIONT;
+    float3 NormalL : NORMAL;
+    float4 Color : COLOR;
+};
+
+struct VertexPosWHNormalWColor
+{
+    float4 PosH : SV_POSITION;
+    float3 NormalW : NORMAL;
+    float4 Color : COLOR;
+    float3 PosW : TEXCOORD0;
+};
+
 struct ObjectConstants
 {
     float4x4 World;

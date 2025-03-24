@@ -6,7 +6,7 @@
 
 namespace DSM {
 
-	struct VertexPosLColor
+	struct VertexPosColor
 	{
 		static decltype(auto) GetInputLayout()
 		{
@@ -23,7 +23,7 @@ namespace DSM {
 		DirectX::XMFLOAT4 m_Color;
 	};
 
-	struct VertexPosLNormalColor
+	struct VertexPosNormalColor
 	{
 		static decltype(auto) GetInputLayout()
 		{
@@ -43,7 +43,7 @@ namespace DSM {
 		DirectX::XMFLOAT4 m_Color;
 	};
 
-	struct VertexPosLNormalTangentColor
+	struct VertexPosNormalTangentColor
 	{
 		static decltype(auto) GetInputLayout()
 		{
@@ -66,7 +66,7 @@ namespace DSM {
 		DirectX::XMFLOAT4 m_Color;
 	};
 
-	struct VertexPosLNormal
+	struct VertexPosNormal
 	{
 		static decltype(auto) GetInputLayout()
 		{
@@ -83,7 +83,7 @@ namespace DSM {
 		DirectX::XMFLOAT3 m_Normal;
 	};
 
-	struct VertexPosLNormalTex
+	struct VertexPosNormalTex
 	{
 		static decltype(auto) GetInputLayout()
 		{

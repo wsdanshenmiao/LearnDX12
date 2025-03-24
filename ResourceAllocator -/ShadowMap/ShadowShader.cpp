@@ -109,7 +109,7 @@ namespace DSM {
         m_ShaderPasses[1] = m_ShaderHelper->GetShaderPass("ShadowWithAlphaTest");
 
         for (int i = 0; i < m_ShaderPasses.size(); i++) {
-            auto& inputLayout = VertexPosLNormalTex::GetInputLayout();
+            auto& inputLayout = VertexPosNormalTex::GetInputLayout();
             m_ShaderPasses[i]->SetInputLayout({inputLayout.data(), (UINT)inputLayout.size()});
 
             D3D12_RASTERIZER_DESC rasterizerDesc{};

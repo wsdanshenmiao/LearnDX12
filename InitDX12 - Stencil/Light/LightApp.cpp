@@ -301,7 +301,7 @@ namespace DSM {
 		auto& meshManager = ModelManager::GetInstance();
 		auto& mesh = elenaModel->GetAllMesh();
 		auto vertFunc = [](const Vertex& vert) {
-			VertexPosLNormal ret{};
+			VertexPosNormal ret{};
 			ret.m_Pos = vert.m_Position;
 			ret.m_Normal = vert.m_Normal;
 			//ret.m_Color = { 1,1,1,1 };
@@ -312,7 +312,7 @@ namespace DSM {
 			auto newMesh = m.m_Mesh;
 			meshManager.AddMesh(m.m_Name, std::move(newMesh));
 		}
-		m_MeshData[elenaModel->GetName()] = meshManager.GetAllMeshData<VertexPosLNormal>(
+		m_MeshData[elenaModel->GetName()] = meshManager.GetAllMeshData<VertexPosNormal>(
 			m_D3D12Device.Get(),
 			m_CommandList.Get(),
 			elenaModel->GetName(),
@@ -607,8 +607,8 @@ namespace DSM {
 		psoDesc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
 		psoDesc.DepthStencilState = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
 		psoDesc.InputLayout = {
-			VertexPosLNormal::GetInputLayout().data(),
-			(UINT)VertexPosLNormal::GetInputLayout().size()
+			VertexPosNormal::GetInputLayout().data(),
+			(UINT)VertexPosNormal::GetInputLayout().size()
 		};
 		psoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
 		psoDesc.NumRenderTargets = 1;

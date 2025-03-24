@@ -445,25 +445,19 @@ namespace DSM {
 			// 创建渲染管线对象
 			m_PSODesc.pRootSignature = m_pRootSignature.Get();
 			if (auto VS = m_ShaderInfos[getIndex(ShaderType::VERTEX_SHADER)]; VS != nullptr) {
-				m_PSODesc.VS = { VS->m_pShader->GetBufferPointer(),
-				VS->m_pShader->GetBufferSize() };
+				m_PSODesc.VS = { VS->m_pShader->GetBufferPointer(), VS->m_pShader->GetBufferSize() };
 			}
 			if (auto HS = m_ShaderInfos[getIndex(ShaderType::HULL_SHADER)]; HS != nullptr) {
-				m_PSODesc.HS = { HS->m_pShader->GetBufferPointer(),
-					HS->m_pShader->GetBufferSize()
-				};
+				m_PSODesc.HS = { HS->m_pShader->GetBufferPointer(), HS->m_pShader->GetBufferSize() };
 			}
 			if (auto DS = m_ShaderInfos[getIndex(ShaderType::DOMAIN_SHADER)]; DS != nullptr) {
-				m_PSODesc.DS = { DS->m_pShader->GetBufferPointer(),
-				DS->m_pShader->GetBufferSize() };
+				m_PSODesc.DS = { DS->m_pShader->GetBufferPointer(), DS->m_pShader->GetBufferSize() };
 			}
 			if (auto GS = m_ShaderInfos[getIndex(ShaderType::GEOMETRY_SHADER)]; GS != nullptr) {
-				m_PSODesc.GS = { GS->m_pShader->GetBufferPointer(),
-				GS->m_pShader->GetBufferSize() };
+				m_PSODesc.GS = { GS->m_pShader->GetBufferPointer(), GS->m_pShader->GetBufferSize() };
 			}
 			if (auto PS = m_ShaderInfos[getIndex(ShaderType::PIXEL_SHADER)]; PS != nullptr) {
-				m_PSODesc.PS = { PS->m_pShader->GetBufferPointer(),
-				PS->m_pShader->GetBufferSize() };
+				m_PSODesc.PS = { PS->m_pShader->GetBufferPointer(), PS->m_pShader->GetBufferSize() };
 			}
 
 			ThrowIfFailed(device->CreateGraphicsPipelineState(&m_PSODesc, IID_PPV_ARGS(m_pPipelineState.GetAddressOf())));

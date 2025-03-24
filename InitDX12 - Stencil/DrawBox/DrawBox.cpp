@@ -212,15 +212,15 @@ namespace DSM {
 	bool DrawBox::CreateBox()
 	{
 		// 设置顶点
-		std::array<VertexPosLColor, 8> vertexs = {
-			VertexPosLColor({ XMFLOAT3(-1.0f, -1.0f, -1.0f),XMFLOAT4(Colors::White) }),
-			VertexPosLColor({ XMFLOAT3(-1.0f, +1.0f, -1.0f),XMFLOAT4(Colors::Black) }),
-			VertexPosLColor({ XMFLOAT3(+1.0f, +1.0f, -1.0f),XMFLOAT4(Colors::Red) }),
-			VertexPosLColor({ XMFLOAT3(+1.0f, -1.0f, -1.0f),XMFLOAT4(Colors::Green) }),
-			VertexPosLColor({ XMFLOAT3(-1.0f, -1.0f, +1.0f),XMFLOAT4(Colors::Blue) }),
-			VertexPosLColor({ XMFLOAT3(-1.0f, +1.0f, +1.0f),XMFLOAT4(Colors::Yellow) }),
-			VertexPosLColor({ XMFLOAT3(+1.0f, +1.0f, +1.0f),XMFLOAT4(Colors::Cyan) }),
-			VertexPosLColor({ XMFLOAT3(+1.0f, -1.0f, +1.0f),XMFLOAT4(Colors::Magenta) })
+		std::array<VertexPosColor, 8> vertexs = {
+			VertexPosColor({ XMFLOAT3(-1.0f, -1.0f, -1.0f),XMFLOAT4(Colors::White) }),
+			VertexPosColor({ XMFLOAT3(-1.0f, +1.0f, -1.0f),XMFLOAT4(Colors::Black) }),
+			VertexPosColor({ XMFLOAT3(+1.0f, +1.0f, -1.0f),XMFLOAT4(Colors::Red) }),
+			VertexPosColor({ XMFLOAT3(+1.0f, -1.0f, -1.0f),XMFLOAT4(Colors::Green) }),
+			VertexPosColor({ XMFLOAT3(-1.0f, -1.0f, +1.0f),XMFLOAT4(Colors::Blue) }),
+			VertexPosColor({ XMFLOAT3(-1.0f, +1.0f, +1.0f),XMFLOAT4(Colors::Yellow) }),
+			VertexPosColor({ XMFLOAT3(+1.0f, +1.0f, +1.0f),XMFLOAT4(Colors::Cyan) }),
+			VertexPosColor({ XMFLOAT3(+1.0f, -1.0f, +1.0f),XMFLOAT4(Colors::Magenta) })
 		};
 
 		// 设置索引
@@ -247,7 +247,7 @@ namespace DSM {
 		};
 
 
-		const UINT64 vbByteSize = vertexs.size() * sizeof(VertexPosLColor);
+		const UINT64 vbByteSize = vertexs.size() * sizeof(VertexPosColor);
 		const UINT64 ibByteSize = indices.size() * sizeof(std::uint16_t);
 
 		m_Box = std::make_unique<MeshData>();
@@ -267,7 +267,7 @@ namespace DSM {
 
 		m_Box->m_VertexBufferByteSize = vbByteSize;
 		m_Box->m_IndexBufferByteSize = ibByteSize;
-		m_Box->m_VertexByteStride = sizeof(VertexPosLColor);
+		m_Box->m_VertexByteStride = sizeof(VertexPosColor);
 		m_Box->m_IndexFormat = DXGI_FORMAT_R16_UINT;
 
 		SubmeshData subMesh{};

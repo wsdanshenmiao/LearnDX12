@@ -10,6 +10,11 @@ namespace DSM {
 	class ImguiManager : public BaseImGuiManager<ImguiManager>
 	{
 	public:
+		enum class RenderModel : int
+		{
+			Triangles, 
+		};
+		
 		void RenderImGui(ID3D12GraphicsCommandList* cmdList) override;
 		
 	protected:
@@ -20,16 +25,9 @@ namespace DSM {
 		void UpdateImGui(const CpuTimer& timer) override;
 
 	public:
-		bool m_EnableWireFrame = false;
-		bool m_EnableDebug = true;
-		float m_FogStart = 10;
-		float m_FogRange = 100;
-		DirectX::XMFLOAT3 m_FogColor = DirectX::XMFLOAT3(1, 1, 1);
 		DirectX::XMFLOAT3 m_LightDir;
 		DirectX::XMFLOAT3 m_LightColor;
-
-		D3D12DescriptorHandle m_DebugShadowMapRTV;
-		D3D12DescriptorHandle m_DebugShadowMapSRV;
+		float m_CylineHeight = 1;
 	};
 }
 

@@ -166,7 +166,7 @@ namespace DSM {
 
 		for (const auto& [name, obj] : objManager.GetAllObject()) {
 			if (auto model = obj->GetModel(); model != nullptr) {
-				const auto& meshData = modelManager.GetMeshData<VertexPosLNormalTex>(model->GetName());
+				const auto& meshData = modelManager.GetMeshData<VertexPosNormalTex>(model->GetName());
 				auto vertexBV = meshData->GetVertexBufferView();
 				auto indexBV = meshData->GetIndexBufferView();
 				m_CommandList->IASetVertexBuffers(0, 1, &vertexBV);
@@ -290,14 +290,14 @@ namespace DSM {
 
 		// 提前为所有模型生成网格数据
 		auto vertFunc = [](const Vertex& vert) {
-			VertexPosLNormalTex ret{};
+			VertexPosNormalTex ret{};
 			ret.m_Normal = vert.m_Normal;
 			ret.m_Pos = vert.m_Position;
 			ret.m_TexCoord = vert.m_TexCoord;
 			return ret;
 			};
 
-		modelManager.CreateMeshDataForAllModel<VertexPosLNormalTex>(
+		modelManager.CreateMeshDataForAllModel<VertexPosNormalTex>(
 			m_CommandList.Get(),
 			vertFunc);
 	}
@@ -347,7 +347,7 @@ namespace DSM {
 				1,
 				typeid(PassConstants).name());
 			resource->AddDynamicBuffer(
-				sizeof(VertexPosLNormalTex),
+				sizeof(VertexPosNormalTex),
 				m_Waves->VertexCount(),
 				"WavesVertex");
 			for (const auto& [name, obj] : objManager.GetAllObject()) {
@@ -443,8 +443,8 @@ namespace DSM {
 		psoDesc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
 		psoDesc.DepthStencilState = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
 		psoDesc.InputLayout = {
-			VertexPosLNormalTex::GetInputLayout().data(),
-			(UINT)VertexPosLNormalTex::GetInputLayout().size()
+			VertexPosNormalTex::GetInputLayout().data(),
+			(UINT)VertexPosNormalTex::GetInputLayout().size()
 		};
 		psoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
 		psoDesc.NumRenderTargets = 1;
@@ -578,10 +578,10 @@ namespace DSM {
 		auto& currWavesVB = m_CurrFrameResource->m_Buffers.find("WavesVertex")->second;
 		BYTE* mappedData = nullptr;
 		currWavesVB->Map(0, nullptr, reinterpret_cast<void**>(&mappedData));
-		auto byteSize = sizeof(VertexPosLNormalTex);
+		auto byteSize = sizeof(VertexPosNormalTex);
 		for (int i = 0; i < m_Waves->VertexCount(); ++i)
 		{
-			VertexPosLNormalTex v;
+			VertexPosNormalTex v;
 
 			v.m_Pos = m_Waves->Position(i);
 			v.m_Normal = m_Waves->Normal(i);
@@ -592,7 +592,7 @@ namespace DSM {
 		currWavesVB->Unmap(0, nullptr);
 
 		// Set the dynamic VB of the wave renderitem to the current frame VB.
-		auto meshData = ModelManager::GetInstance().GetMeshData<VertexPosLNormalTex>("Waves");
+		auto meshData = ModelManager::GetInstance().GetMeshData<VertexPosNormalTex>("Waves");
 		meshData->m_VertexBufferGPU = currWavesVB;
 	}
 

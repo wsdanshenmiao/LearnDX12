@@ -1,4 +1,7 @@
 #include "TreeBillboardsAPP.h"
+
+#include <vector>
+
 #include "ImguiManager.h"
 #include "Vertex.h"
 #include "ModelManager.h"
@@ -62,9 +65,10 @@ namespace DSM {
 		// Update
 		ImguiManager::GetInstance().Update(timer);
 		UpdatePassCB(timer);
-		UpdateShadowCB(timer);
 		UpdateLightCB(timer);
 		m_CameraController->Update(timer.DeltaTime());
+		m_CylinderShader->SetCylinderCB(m_CurrFrameResource->m_Resources["Cylinder"]);
+		m_CylinderShader->SetCylinderConstants(ImguiManager::GetInstance().m_CylineHeight);
 	}
 
 	void TreeBillboardsAPP::OnRender(const CpuTimer& timer)
@@ -101,7 +105,8 @@ namespace DSM {
 
 
 		RenderScene(RenderLayer::Opaque);
-		RenderTriangle();
+		//RenderTriangle();
+		RenderCylinder();
 
 
 		ImguiManager::GetInstance().RenderImGui(m_CommandList.Get());
@@ -156,7 +161,7 @@ namespace DSM {
 	void TreeBillboardsAPP::RenderTriangle()
 	{
 		const auto triangle = ObjectManager::GetInstance().GetObjectByName("Triangle");
-		const auto mesh = ModelManager::GetInstance().GetMeshData<VertexPosLColor>(triangle->GetName());
+		const auto mesh = ModelManager::GetInstance().GetMeshData<VertexPosColor>(triangle->GetName());
 		const auto vertBV = mesh->GetVertexBufferView();
 		auto& CBuffers = m_CurrFrameResource->m_Resources;
 		m_CommandList->IASetVertexBuffers(0, 1, &vertBV);
@@ -165,6 +170,20 @@ namespace DSM {
 		m_TriangleShader->SetObjectConstants(GetObjectConstants(*triangle));
 		m_TriangleShader->Apply(m_CommandList.Get(), m_CurrFrameResource);
 		m_CommandList->DrawInstanced(3, 1, 0, 0);
+	}
+
+	void TreeBillboardsAPP::RenderCylinder()
+	{
+		const auto cylinder = ObjectManager::GetInstance().GetObjectByName("Cylinder");
+		const auto mesh = ModelManager::GetInstance().GetMeshData<VertexPosNormalColor>(cylinder->GetName());
+		const auto vertBV = mesh->GetVertexBufferView();
+		auto& CBuffers = m_CurrFrameResource->m_Resources;
+		m_CommandList->IASetVertexBuffers(0, 1, &vertBV);
+		m_CylinderShader->SetObjectCB(CBuffers[cylinder->GetName()]);
+		m_CylinderShader->SetPassCB(CBuffers[typeid(PassConstants).name()]);
+		m_CylinderShader->SetObjectConstants(GetObjectConstants(*cylinder));
+		m_CylinderShader->Apply(m_CommandList.Get(), m_CurrFrameResource);
+		m_CommandList->DrawInstanced(41, 1, 0, 0);
 	}
 
 	bool TreeBillboardsAPP::InitResource()
@@ -181,11 +200,11 @@ namespace DSM {
 		m_SceneSphere.Radius = std::sqrt(50 * 50 + 40 * 40);
 
 		m_TriangleShader = std::make_unique<TriangleShader>(m_D3D12Device.Get());
+		m_CylinderShader = std::make_unique<CylinderShader>(m_D3D12Device.Get());
 
 		CreateObject();
 		CreateTexture();
 		CreateFrameResource();
-		CreateDescriptor();
 
 		return true;
 	}
@@ -195,52 +214,51 @@ namespace DSM {
 		auto& modelManager = ModelManager::GetInstance();
 		auto& objManager = ObjectManager::GetInstance();
 
-		/*const Model* sponzaModel = modelManager.LoadModelFromeFile(
-			"Sponza",
-			"Models\\Sponza\\Sponza.gltf",
-			m_CommandList.Get());
-		auto sponza = std::make_shared<Object>(sponzaModel->GetName(), sponzaModel);
-		sponza->GetTransform().SetScale({ 0.1,0.1,0.1 });
-		sponza->GetTransform().SetRotation(0, MathHelper::PI / 2, 0);*/
-		//objManager.AddObject(sponza, RenderLayer::Opaque);
-
-		const Model* elenaModel = modelManager.LoadModelFromeFile(
-			"Elena",
-			"Models\\Elena.obj",
-			m_CommandList.Get());
-		auto elena = std::make_shared<Object>(elenaModel->GetName(), elenaModel);
-		//objManager.AddObject(elena, RenderLayer::Opaque);
-
-		const Model* planeModel = modelManager.LoadModelFromeGeometry(
-			"Plane", GeometryGenerator::CreateGrid(80, 80, 2, 2));
-		auto plane = std::make_shared<Object>(planeModel->GetName(), planeModel);
-		//objManager.AddObject(plane, RenderLayer::Opaque);
-
 		GeometryMesh triangleMesh{};
 		triangleMesh.m_Vertices = {
-			{ XMFLOAT3(-1.0f, -0.866f, 1.0f)},
-			{ XMFLOAT3(0.0f, 0.866f, 1.0f)},
-			{ XMFLOAT3(1.0f, -0.866f, 1.0f)}};
+			{ XMFLOAT3(-1.0f * 3, -0.866f * 3, 1.0f * 3)},
+			{ XMFLOAT3(0.0f, 0.866f * 3, 1.0f * 3)},
+			{ XMFLOAT3(1.0f * 3, -0.866f * 3, 1.0f * 3)}};
 		const Model* triangleModel = modelManager.LoadModelFromeGeometry("Triangle", triangleMesh);
 		auto triangle = std::make_shared<Object>(triangleModel->GetName(), triangleModel);
 		objManager.AddObject(triangle, RenderLayer::Opaque);
 
+		GeometryMesh roundMesh{};
+		roundMesh.m_Vertices.resize(41);
+		auto& vertices = roundMesh.m_Vertices;
+		for (int i = 0; i < 40; ++i)
+		{
+			vertices[i].m_Position = XMFLOAT3(cosf(XM_PI / 20 * i), -1.0f, -sinf(XM_PI / 20 * i));
+			vertices[i].m_Normal = XMFLOAT3(cosf(XM_PI / 20 * i), 0.0f, -sinf(XM_PI / 20 * i));
+		}
+		vertices[40] = vertices[0];
+		const Model* roundModel = modelManager.LoadModelFromeGeometry("Cylinder", roundMesh);
+		auto round = std::make_shared<Object>(roundModel->GetName(), roundModel);
+		objManager.AddObject(round, RenderLayer::Opaque);
+
 
 		auto vertFunc0 = [](const Vertex& vert) {
-			VertexPosLNormalTex ret{};
+			VertexPosNormalTex ret{};
 			ret.m_Normal = vert.m_Normal;
 			ret.m_Pos = vert.m_Position;
 			ret.m_TexCoord = vert.m_TexCoord;
 			return ret;};
 		auto vertFunc1 = [](const Vertex& vert) {
-			VertexPosLColor ret{};
+			VertexPosColor ret{};
 			auto vector = MathHelper::RandomVector();
 			ret.m_Pos = vert.m_Position;
 			ret.m_Color = XMFLOAT4{vector.x, vector.y, vector.z, 1.0f};
 			return ret;};
+		auto vertFunc2 = [](const Vertex& vert) {
+			VertexPosNormalColor ret{};
+			ret.m_Pos = vert.m_Position;
+			ret.m_Color = XMFLOAT4{1,1,1,1};
+			ret.m_Normal = vert.m_Normal;
+			return ret;};
 
-		modelManager.CreateMeshDataForAllModel<VertexPosLNormalTex>(m_CommandList.Get(), vertFunc0);
-		modelManager.CreateMeshDataForAllModel<VertexPosLColor>(m_CommandList.Get(), vertFunc1);
+		modelManager.CreateMeshDataForAllModel<VertexPosNormalTex>(m_CommandList.Get(), vertFunc0);
+		modelManager.CreateMeshDataForAllModel<VertexPosColor>(m_CommandList.Get(), vertFunc1);
+		modelManager.CreateMeshDataForAllModel<VertexPosNormalColor>(m_CommandList.Get(), vertFunc2);
 	}
 
 	void TreeBillboardsAPP::CreateTexture()
@@ -275,12 +293,8 @@ namespace DSM {
 			resource->AddConstantBuffer(sizeof(PassConstants), 1, "ShadowMap");
 			resource->AddConstantBuffer(lightManager.GetLightByteSize(), 1, lightManager.GetLightBufferName());
 			objManager.CreateObjectsResource(resource.get(), sizeof(ObjectConstants), sizeof(MaterialConstants));
+			resource->AddConstantBuffer(sizeof(float), 1, "Cylinder");
 		}
-	}
-
-	void TreeBillboardsAPP::CreateDescriptor()
-	{
-
 	}
 
 	void TreeBillboardsAPP::UpdatePassCB(const CpuTimer& timer)
@@ -307,66 +321,9 @@ namespace DSM {
 		passConstants.m_FarZ = m_Camera->GetFarZ();
 		passConstants.m_TotalTime = timer.TotalTime();
 		passConstants.m_DeltaTime = timer.DeltaTime();
-		passConstants.m_FogColor = imgui.m_FogColor;
-		passConstants.m_FogStart = imgui.m_FogStart;
-		passConstants.m_FogRange = imgui.m_FogRange;
 
 		m_TriangleShader->SetPassConstants(passConstants);
-	}
-
-	void TreeBillboardsAPP::UpdateShadowCB(const CpuTimer& timer)
-	{
-		auto& imgui = ImguiManager::GetInstance();
-
-		XMVECTOR lightDir = XMLoadFloat3(&imgui.m_LightDir);
-		XMVECTOR lightPos = -2.0f * m_SceneSphere.Radius * lightDir;
-		XMVECTOR targetPos = XMLoadFloat3(&m_SceneSphere.Center);
-		XMVECTOR lightUp = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
-		XMMATRIX lightView = XMMatrixLookAtLH(lightPos, targetPos, lightUp);
-
-		auto detView = XMMatrixDeterminant(lightView);
-		XMMATRIX invView = XMMatrixInverse(&detView, lightView);
-		XMFLOAT3 sphereCenterLS;
-		XMStoreFloat3(&sphereCenterLS, XMVector3TransformCoord(XMLoadFloat3(&m_SceneSphere.Center), lightView));
-
-		// Ortho frustum in light space encloses scene.
-		float l = sphereCenterLS.x - m_SceneSphere.Radius;
-		float b = sphereCenterLS.y - m_SceneSphere.Radius;
-		float n = sphereCenterLS.z - m_SceneSphere.Radius;
-		float r = sphereCenterLS.x + m_SceneSphere.Radius;
-		float t = sphereCenterLS.y + m_SceneSphere.Radius;
-		float f = sphereCenterLS.z + m_SceneSphere.Radius;
-
-		XMMATRIX lightProj = XMMatrixOrthographicOffCenterLH(l, r, b, t, n, f);
-		auto detProj = XMMatrixDeterminant(lightProj);
-		XMMATRIX invProj = XMMatrixInverse(&detProj, lightProj);
-
-		XMMATRIX T(
-			0.5f, 0.0f, 0.0f, 0.0f,
-			0.0f, -0.5f, 0.0f, 0.0f,
-			0.0f, 0.0f, 1.0f, 0.0f,
-			0.5f, 0.5f, 0.0f, 1.0f);
-
-		XMMATRIX S = lightView * lightProj * T;
-		m_ShadowTrans = S;
-
-		PassConstants passConstants;
-		XMStoreFloat4x4(&passConstants.m_View, XMMatrixTranspose(lightView));
-		XMStoreFloat4x4(&passConstants.m_InvView, XMMatrixTranspose(invView));
-		XMStoreFloat4x4(&passConstants.m_Proj, XMMatrixTranspose(lightProj));
-		XMStoreFloat4x4(&passConstants.m_InvProj, XMMatrixTranspose(invProj));
-		XMStoreFloat4x4(&passConstants.m_ShadowTrans, XMMatrixTranspose(S));
-		XMStoreFloat3(&passConstants.m_EyePosW, lightPos);
-		passConstants.m_RenderTargetSize = XMFLOAT2((float)m_ClientWidth, (float)m_ClientHeight);
-		passConstants.m_InvRenderTargetSize = XMFLOAT2(1.0f / m_ClientWidth, 1.0f / m_ClientHeight);
-		passConstants.m_NearZ = n;
-		passConstants.m_FarZ = f;
-		passConstants.m_TotalTime = timer.TotalTime();
-		passConstants.m_DeltaTime = timer.DeltaTime();
-		passConstants.m_FogColor = imgui.m_FogColor;
-		passConstants.m_FogStart = imgui.m_FogStart;
-		passConstants.m_FogRange = imgui.m_FogRange;
-
+		m_CylinderShader->SetPassConstants(passConstants);
 	}
 
 	void TreeBillboardsAPP::UpdateLightCB(const CpuTimer& timer)
