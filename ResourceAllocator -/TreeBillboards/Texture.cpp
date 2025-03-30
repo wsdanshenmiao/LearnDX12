@@ -226,12 +226,14 @@ namespace DSM {
 		ID3D12GraphicsCommandList* cmdList,
 		D3D12UploadBufferAllocator* uploadAllocator)
 	{
+		auto& texResource = texture.m_Texture.m_ResourceLocation.m_UnderlyingResource->m_Resource;
+		
 		// 获取拷贝信息
 		std::vector<D3D12_PLACED_SUBRESOURCE_FOOTPRINT> footprint(subresources.size());	// 子资源的宽高偏移等信息
 		std::vector<UINT> numRows(subresources.size());	// 子资源的行数
 		std::vector<UINT64> rowByteSize(subresources.size());	// 子资源每一行的字节大小
 		UINT64 uploadBufferSize;	// 整个纹理数据的大小
-		auto texDesc = texture.m_Texture.m_ResourceLocation.m_UnderlyingResource->m_Resource->GetDesc();
+		auto texDesc = texResource->GetDesc();
 		device->GetCopyableFootprints(
 			&texDesc, 0,
 			subresources.size(), 0,
@@ -240,7 +242,7 @@ namespace DSM {
 
 		// 创建GPU上传堆
 		uploadAllocator->AllocateUploadBuffer(uploadBufferSize, 0, texture.m_UploadHeap);
-
+		
 		BYTE* mappedData = static_cast<BYTE*>(texture.m_UploadHeap.m_MappedBaseAddress);
 		// 每一个子资源
 		for (std::size_t i = 0; i < subresources.size(); i++) {
@@ -263,7 +265,7 @@ namespace DSM {
 			D3D12_TEXTURE_COPY_LOCATION dest{};
 			dest.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
 			dest.SubresourceIndex = i;
-			dest.pResource = texture.m_Texture.m_ResourceLocation.m_BlockData.m_PlacedResource->m_Resource.Get();
+			dest.pResource = texResource.Get();
 
 			auto baseOffset = texture.m_UploadHeap.m_OffsetFromBaseOfResource;
 			D3D12_TEXTURE_COPY_LOCATION src{};
@@ -277,7 +279,7 @@ namespace DSM {
 		D3D12_RESOURCE_BARRIER barrier{};
 		barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
 		barrier.Transition = {
-			texture.m_Texture.m_ResourceLocation.m_BlockData.m_PlacedResource->m_Resource.Get(),
+			texResource.Get(),
 			D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES,
 			D3D12_RESOURCE_STATE_COPY_DEST,
 			D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE

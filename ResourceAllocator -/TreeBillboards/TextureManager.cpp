@@ -86,6 +86,11 @@ namespace DSM {
 		}
 	}
 
+	D3D12DescriptorHandle TextureManager::GetDefaultTextureResourceView() const
+	{
+		return m_Textures.find("DefaultTexture")->second.GetSRV();
+	}
+
 	TextureManager::TextureManager(ID3D12Device* device, ID3D12GraphicsCommandList* cmdList)
 		:m_Device(device), m_DescriptorHeap(std::make_unique<D3D12DescriptorHeap>(device)) {
 		m_DescriptorHeap->Create(L"TextureShaderResourceView", D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, 512);
@@ -166,14 +171,21 @@ namespace DSM {
 	void TextureManager::CreateSRV(Texture& texture)
 	{
 		D3D12_SHADER_RESOURCE_VIEW_DESC SRVDesc{};
-		SRVDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
-		SRVDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-		SRVDesc.Texture2D.MostDetailedMip = 0;
-		SRVDesc.Texture2D.ResourceMinLODClamp = 0;
 		auto& texResource = texture.GetTexture().m_UnderlyingResource->m_Resource;
 		SRVDesc.Format = texResource->GetDesc().Format;
 		SRVDesc.Texture2D.MipLevels = texResource->GetDesc().MipLevels;
-			
+		SRVDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+		SRVDesc.ViewDimension = texResource->GetDesc().DepthOrArraySize > 1 ? D3D12_SRV_DIMENSION_TEXTURE2DARRAY : D3D12_SRV_DIMENSION_TEXTURE2D;
+		if (SRVDesc.ViewDimension == D3D12_SRV_DIMENSION_TEXTURE2DARRAY) {
+			SRVDesc.Texture2DArray.MostDetailedMip = 0;
+			SRVDesc.Texture2DArray.MipLevels = -1;
+			SRVDesc.Texture2DArray.FirstArraySlice = 0;
+			SRVDesc.Texture2DArray.ArraySize = texResource->GetDesc().DepthOrArraySize;
+		}
+		else {
+			SRVDesc.Texture2D.MostDetailedMip = 0;
+			SRVDesc.Texture2D.ResourceMinLODClamp = 0;
+		}
 		auto handle = m_DescriptorHeap->Allocate();
 		texture.SetSRVHandle(handle);
 		m_Device->CreateShaderResourceView(

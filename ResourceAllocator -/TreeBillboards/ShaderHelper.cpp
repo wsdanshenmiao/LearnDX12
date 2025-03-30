@@ -109,9 +109,6 @@ namespace DSM {
 	{
 		std::string m_Name;
 		ComPtr<ID3DBlob> m_pShader;
-		std::uint32_t m_CbUseMask = 0;
-		std::uint32_t m_SsUseMask = 0;
-		std::uint32_t m_SrUseMasks[4] = {};
 		std::unique_ptr<ConstantBuffer> m_pParamData = nullptr; // 每个着色器有自己的参数常量缓冲区
 		std::map<std::string, std::shared_ptr<ConstantBufferVariable>> m_ConstantBufferVariable;    // 常量缓冲区变量 
 		virtual ~ShaderInfo() = default;
@@ -690,7 +687,7 @@ namespace DSM {
 		// 存储编译后的 Shader代码
 		std::map<std::string, ComPtr<ID3DBlob>> m_ShaderPassByteCode;
 		// 着色器的信息
-		std::unordered_map<std::string, std::shared_ptr<ShaderInfo>> m_ShaderInfo;
+		std::map<std::string, std::shared_ptr<ShaderInfo>> m_ShaderInfo;
 
 		std::map<std::string, std::shared_ptr<IShaderPass>> m_ShaderPass;
 
@@ -808,9 +805,6 @@ namespace DSM {
 				// 不存在则新建
 				m_ConstantBuffers[bindDesc.BindPoint] = std::move(constantBuffer);
 			}
-
-			// 标记该着色器使用了当前常量缓冲区
-			shaderInfo[infoName]->m_CbUseMask |= (1 << bindDesc.BindPoint);
 		}
 		else if (CBDesc.Variables > 0) {
 			// 若是参数CB为其创建一个常量缓冲区
@@ -911,8 +905,6 @@ namespace DSM {
 			shaderResource.m_BindCount = bindDesc.BindCount;
 			m_ShaderResources[bindDesc.BindPoint] = std::move(shaderResource);
 		}
-
-		m_ShaderInfo[infoName]->m_SrUseMasks[bindDesc.BindPoint / 32] |= (1 << (bindDesc.BindPoint % 32));
 	}
 
 	void ShaderHelper::Impl::GetRWResourceInfo(
@@ -959,8 +951,6 @@ namespace DSM {
 			samplerState.m_RegisterSpace = bindDesc.Space;
 			m_SamplerStates[bindDesc.BindPoint] = std::move(samplerState);
 		}
-
-		m_ShaderInfo[infoName]->m_SsUseMask |= (1 << bindDesc.BindPoint);
 	}
 #pragma endregion 
 
@@ -972,11 +962,6 @@ namespace DSM {
 
 	ShaderHelper::~ShaderHelper()
 	{
-	}
-
-	void ShaderHelper::SetFrameCount(std::uint32_t frameCount)
-	{
-		FrameCount = frameCount;
 	}
 
 	void ShaderHelper::SetConstantBufferByName(const std::string& name, std::shared_ptr<D3D12ResourceLocation> cb)

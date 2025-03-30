@@ -28,6 +28,7 @@ namespace DSM {
 		size_t GetTextureCount() const noexcept;
 		const std::unordered_map<std::string, Texture>& GetAllTextures() noexcept;
 		D3D12DescriptorHandle GetTextureResourceView(const std::string& texName) const;
+		D3D12DescriptorHandle GetDefaultTextureResourceView() const;
 		ID3D12DescriptorHeap* GetDescriptorHeap() const;
 
 	protected:

@@ -3,19 +3,19 @@
 
 struct VertexPosLColor
 {
-    float3 PosL : POSITIONT;
+    float3 PosL : POSITION;
     float4 Color : COLOR;
 };
 
 struct VertexPosLNormalL
 {
-    float3 PosL : POSITIONT;
+    float3 PosL : POSITION;
     float3 NormalL : NORMAL;
 };
 
 struct VertexPosLNormalLTex
 {
-    float3 PosL : POSITIONT;
+    float3 PosL : POSITION;
     float3 NormalL : NORMAL;
     float2 TexCoord : TEXCOORD0;
 };
@@ -57,7 +57,7 @@ struct VertexPosWHNormalWTex
 
 struct VertexPosLTex
 {
-    float4 PosL : POSITIONT;
+    float4 PosL : POSITION;
     float2 TexCoord : TEXCOORD0;
 };
 
@@ -78,7 +78,7 @@ struct VertexPosWHNormalWTexShadow
 
 struct VertexPosLNormalLColor
 {
-    float3 PosL : POSITIONT;
+    float3 PosL : POSITION;
     float3 NormalL : NORMAL;
     float4 Color : COLOR;
 };

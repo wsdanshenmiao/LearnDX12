@@ -67,8 +67,6 @@ namespace DSM {
 		UpdatePassCB(timer);
 		UpdateLightCB(timer);
 		m_CameraController->Update(timer.DeltaTime());
-		m_CylinderShader->SetCylinderCB(m_CurrFrameResource->m_Resources["Cylinder"]);
-		m_CylinderShader->SetCylinderConstants(ImguiManager::GetInstance().m_CylineHeight);
 	}
 
 	void TreeBillboardsAPP::OnRender(const CpuTimer& timer)
@@ -105,9 +103,12 @@ namespace DSM {
 
 
 		RenderScene(RenderLayer::Opaque);
-		//RenderTriangle();
-		RenderCylinder();
-
+		if (imgui.m_RenderModel == ImguiManager::RenderModel::Triangles) {
+			RenderTriangle();
+		}
+		else if (imgui.m_RenderModel == ImguiManager::RenderModel::Cylinder) {
+			RenderCylinder();
+		}
 
 		ImguiManager::GetInstance().RenderImGui(m_CommandList.Get());
 
@@ -156,6 +157,60 @@ namespace DSM {
 
 	void TreeBillboardsAPP::RenderScene(RenderLayer layer)
 	{
+		{
+			const auto plane = ObjectManager::GetInstance().GetObjectByName("Plane");
+			const auto model = plane->GetModel();
+			const auto& material = model->GetMaterial(0);
+			const auto mesh = ModelManager::GetInstance().GetMeshData<VertexPosNormalTex>(model->GetName());
+			const auto vertBV = mesh->GetVertexBufferView();
+			m_CommandList->IASetVertexBuffers(0, 1, &vertBV);
+			const auto indicesBV = mesh->GetIndexBufferView();
+			m_CommandList->IASetIndexBuffer(&indicesBV);
+		
+			auto& CBuffers = m_CurrFrameResource->m_Resources;
+			m_LitShader->SetObjectCB(CBuffers[plane->GetName()]);
+			m_LitShader->SetPassCB(CBuffers[typeid(PassConstants).name()]);
+			m_LitShader->SetLightCB(CBuffers[LightManager::GetInstance().GetLightBufferName()]);
+			m_LitShader->SetMaterialCB(CBuffers[plane->GetName() + "Mat" + '0']);
+		
+			m_LitShader->SetObjectConstants(GetObjectConstants(*plane));
+			m_LitShader->SetMaterialConstants(GetMaterialConstants(material));
+
+			auto diffuseTex = material.Get<std::string>("Diffuse");
+			std::string texName = diffuseTex == nullptr ? "" : *diffuseTex;
+			m_LitShader->SetTexture(TextureManager::GetInstance().GetTextureResourceView(texName));
+			m_LitShader->SetShadowMap(TextureManager::GetInstance().GetDefaultTextureResourceView());
+			m_LitShader->Apply(m_CommandList.Get(), m_CurrFrameResource);
+
+			auto drawItem = mesh->m_DrawArgs[plane->GetName()];
+			m_CommandList->DrawIndexedInstanced(drawItem.m_IndexCount, 1, drawItem.m_StarIndexLocation, drawItem.m_BaseVertexLocation, 0);
+		}
+		
+		{
+			const auto tree = ObjectManager::GetInstance().GetObjectByName("Tree");
+			const auto model = tree->GetModel();
+			const auto& material = model->GetMaterial(0);
+			const auto mesh = ModelManager::GetInstance().GetMeshData<BillboardVertex>(model->GetName());
+			const auto vertBV = mesh->GetVertexBufferView();
+			m_CommandList->IASetVertexBuffers(0, 1, &vertBV);
+		
+			auto& CBuffers = m_CurrFrameResource->m_Resources;
+			m_TreeBillboardsShader->SetObjectCB(CBuffers[tree->GetName()]);
+			m_TreeBillboardsShader->SetPassCB(CBuffers[typeid(PassConstants).name()]);
+			m_TreeBillboardsShader->SetLightCB(CBuffers[LightManager::GetInstance().GetLightBufferName()]);
+			m_TreeBillboardsShader->SetMaterialCB(CBuffers[tree->GetName() + "Mat" + '0']);
+		
+			m_TreeBillboardsShader->SetObjectConstants(GetObjectConstants(*tree));
+			m_TreeBillboardsShader->SetMaterialConstants(GetMaterialConstants(material));
+
+			auto diffuseTex = material.Get<std::string>("Diffuse");
+			std::string texName = diffuseTex == nullptr ? "" : *diffuseTex;
+			m_TreeBillboardsShader->SetTexture(TextureManager::GetInstance().GetTextureResourceView(texName));
+			m_TreeBillboardsShader->Apply(m_CommandList.Get(), m_CurrFrameResource);
+
+			auto drawItem = mesh->m_DrawArgs[tree->GetName()];
+			m_CommandList->DrawInstanced(m_TreeCount, 1, 0, 0);
+		}
 	}
 
 	void TreeBillboardsAPP::RenderTriangle()
@@ -175,14 +230,31 @@ namespace DSM {
 	void TreeBillboardsAPP::RenderCylinder()
 	{
 		const auto cylinder = ObjectManager::GetInstance().GetObjectByName("Cylinder");
+		const auto model = cylinder->GetModel();
+		assert(model != nullptr);
+		const auto& material = model->GetMaterial(0);
+		auto& CBuffers = m_CurrFrameResource->m_Resources;
+		auto diffuseTex = material.Get<std::string>("Diffuse");
+		std::string texName = diffuseTex == nullptr ? "" : *diffuseTex;
+
 		const auto mesh = ModelManager::GetInstance().GetMeshData<VertexPosNormalColor>(cylinder->GetName());
 		const auto vertBV = mesh->GetVertexBufferView();
-		auto& CBuffers = m_CurrFrameResource->m_Resources;
 		m_CommandList->IASetVertexBuffers(0, 1, &vertBV);
+		
 		m_CylinderShader->SetObjectCB(CBuffers[cylinder->GetName()]);
 		m_CylinderShader->SetPassCB(CBuffers[typeid(PassConstants).name()]);
+		m_CylinderShader->SetLightCB(CBuffers[LightManager::GetInstance().GetLightBufferName()]);
+		m_CylinderShader->SetMaterialCB(CBuffers[cylinder->GetName() + "Mat" + '0']);
+		m_CylinderShader->SetCylinderCB(m_CurrFrameResource->m_Resources["CylinderHeight"]);
+		
+		m_CylinderShader->SetCylinderConstants(ImguiManager::GetInstance().m_CylineHeight);
 		m_CylinderShader->SetObjectConstants(GetObjectConstants(*cylinder));
+		m_CylinderShader->SetMaterialConstants(GetMaterialConstants(material));
+		
+		m_CylinderShader->SetTexture(TextureManager::GetInstance().GetTextureResourceView(texName));
+		
 		m_CylinderShader->Apply(m_CommandList.Get(), m_CurrFrameResource);
+		
 		m_CommandList->DrawInstanced(41, 1, 0, 0);
 	}
 
@@ -192,6 +264,7 @@ namespace DSM {
 
 		m_Camera->SetViewPort(0.0f, 0.0f, (float)m_ClientWidth, (float)m_ClientHeight);
 		m_Camera->SetFrustum(XM_PI / 3, GetAspectRatio(), 0.5f, 300.0f);
+		m_Camera->LookAt({4, 10, -4}, {0,0,0}, {0,1,0});
 		m_CameraController->InitCamera(m_Camera.get());
 		
 		m_ShaderDescriptorHeap = std::make_unique<D3D12DescriptorCache>(m_D3D12Device.Get());
@@ -201,6 +274,8 @@ namespace DSM {
 
 		m_TriangleShader = std::make_unique<TriangleShader>(m_D3D12Device.Get());
 		m_CylinderShader = std::make_unique<CylinderShader>(m_D3D12Device.Get());
+		m_LitShader = std::make_unique<LitShader>(m_D3D12Device.Get());
+		m_TreeBillboardsShader = std::make_unique<TreeBillboardsShader>(m_D3D12Device.Get());
 
 		CreateObject();
 		CreateTexture();
@@ -221,21 +296,38 @@ namespace DSM {
 			{ XMFLOAT3(1.0f * 3, -0.866f * 3, 1.0f * 3)}};
 		const Model* triangleModel = modelManager.LoadModelFromeGeometry("Triangle", triangleMesh);
 		auto triangle = std::make_shared<Object>(triangleModel->GetName(), triangleModel);
+		triangle->GetTransform().SetPosition(0, 3, 0);
 		objManager.AddObject(triangle, RenderLayer::Opaque);
 
 		GeometryMesh roundMesh{};
 		roundMesh.m_Vertices.resize(41);
-		auto& vertices = roundMesh.m_Vertices;
+		auto& roundVertices = roundMesh.m_Vertices;
 		for (int i = 0; i < 40; ++i)
 		{
-			vertices[i].m_Position = XMFLOAT3(cosf(XM_PI / 20 * i), -1.0f, -sinf(XM_PI / 20 * i));
-			vertices[i].m_Normal = XMFLOAT3(cosf(XM_PI / 20 * i), 0.0f, -sinf(XM_PI / 20 * i));
+			roundVertices[i].m_Position = XMFLOAT3(cosf(XM_PI / 20 * i), -1.0f, -sinf(XM_PI / 20 * i));
+			roundVertices[i].m_Normal = XMFLOAT3(cosf(XM_PI / 20 * i), 0.0f, -sinf(XM_PI / 20 * i));
 		}
-		vertices[40] = vertices[0];
+		roundVertices[40] = roundVertices[0];
 		const Model* roundModel = modelManager.LoadModelFromeGeometry("Cylinder", roundMesh);
 		auto round = std::make_shared<Object>(roundModel->GetName(), roundModel);
+		round->GetTransform().SetPosition(0, 3, 0);
 		objManager.AddObject(round, RenderLayer::Opaque);
 
+		auto planeModel = modelManager.LoadModelFromeGeometry("Plane", GeometryGenerator::CreateGrid(80, 80, 2, 2));
+		auto plane = std::make_shared<Object>(planeModel->GetName(), planeModel);
+		objManager.AddObject(plane, RenderLayer::Opaque);
+		
+		GeometryMesh treeMesh{};
+		treeMesh.m_Vertices.resize(m_TreeCount);
+		auto& treeVertices = treeMesh.m_Vertices;
+		for (int i = 0; i < m_TreeCount; ++i)
+		{
+			treeVertices[i].m_Position = XMFLOAT3{
+				MathHelper::RandomFloat(-40, 40), 0, MathHelper::RandomFloat(-40, 40)};
+		}
+		const Model* treeModel = modelManager.LoadModelFromeGeometry("Tree", treeMesh);
+		auto tree = std::make_shared<Object>(treeModel->GetName(), treeModel);
+		objManager.AddObject(tree, RenderLayer::Opaque);
 
 		auto vertFunc0 = [](const Vertex& vert) {
 			VertexPosNormalTex ret{};
@@ -256,9 +348,16 @@ namespace DSM {
 			ret.m_Normal = vert.m_Normal;
 			return ret;};
 
+		auto vertFunc3 = [=](const Vertex& vert) {
+			BillboardVertex ret{};
+			ret.Position = vert.m_Position;
+			ret.Size = m_BoardSize;
+			return ret;};
+
 		modelManager.CreateMeshDataForAllModel<VertexPosNormalTex>(m_CommandList.Get(), vertFunc0);
 		modelManager.CreateMeshDataForAllModel<VertexPosColor>(m_CommandList.Get(), vertFunc1);
 		modelManager.CreateMeshDataForAllModel<VertexPosNormalColor>(m_CommandList.Get(), vertFunc2);
+		modelManager.CreateMeshDataForAllModel<BillboardVertex>(m_CommandList.Get(), vertFunc3);
 	}
 
 	void TreeBillboardsAPP::CreateTexture()
@@ -277,9 +376,9 @@ namespace DSM {
 					}
 				}
 			};
-
-		setTexture("Water", "Textures\\water1.dds", m_CommandList.Get());
-		setTexture("Mirror", "Textures\\ice.dds", m_CommandList.Get());
+		
+		setTexture("Tree", "Textures\\treeArray2.dds", m_CommandList.Get());
+		setTexture("Plane", "Textures\\grass.dds", m_CommandList.Get());
 	}
 
 	void TreeBillboardsAPP::CreateFrameResource()
@@ -289,11 +388,11 @@ namespace DSM {
 
 		for (auto& resource : m_FrameResources) {
 			resource = std::make_unique<FrameResource>(m_D3D12Device.Get());
+			
 			resource->AddConstantBuffer(sizeof(PassConstants), 1, typeid(PassConstants).name());
-			resource->AddConstantBuffer(sizeof(PassConstants), 1, "ShadowMap");
 			resource->AddConstantBuffer(lightManager.GetLightByteSize(), 1, lightManager.GetLightBufferName());
 			objManager.CreateObjectsResource(resource.get(), sizeof(ObjectConstants), sizeof(MaterialConstants));
-			resource->AddConstantBuffer(sizeof(float), 1, "Cylinder");
+			resource->AddConstantBuffer(sizeof(float), 1, "CylinderHeight");
 		}
 	}
 
@@ -324,8 +423,10 @@ namespace DSM {
 
 		m_TriangleShader->SetPassConstants(passConstants);
 		m_CylinderShader->SetPassConstants(passConstants);
+		m_LitShader->SetPassConstants(passConstants);
+		m_TreeBillboardsShader->SetPassConstants(passConstants);
 	}
-
+	
 	void TreeBillboardsAPP::UpdateLightCB(const CpuTimer& timer)
 	{
 		auto& imgui = ImguiManager::GetInstance();
@@ -336,6 +437,10 @@ namespace DSM {
 		dirLight.m_Color = imgui.m_LightColor;
 		lightManager.SetDirLight(0, dirLight);
 
+		auto lightByteSize = lightManager.GetDirLightCount() * sizeof(DirectionalLight);
+		m_CylinderShader->SetDirectionalLights(lightByteSize, lightManager.GetDirLight());
+		m_LitShader->SetDirectionalLights(lightByteSize, lightManager.GetDirLight());
+		m_TreeBillboardsShader->SetDirectionalLights(lightByteSize, lightManager.GetDirLight());
 	}
 
 	MaterialConstants TreeBillboardsAPP::GetMaterialConstants(const Material& material)
@@ -355,6 +460,9 @@ namespace DSM {
 				ret.m_Ambient.y * ambientScale,
 				ret.m_Ambient.z * ambientScale };
 		}
+		else {
+			ret.m_Ambient = XMFLOAT3{0.1f, 0.1f, 0.1f};
+		}
 		if (auto gloss = material.Get<float>("SpecularFactor"); gloss != nullptr) {
 			ret.m_Gloss = *gloss;
 		}
@@ -364,6 +472,8 @@ namespace DSM {
 		return ret;
 	}
 
+	
+	
 	ObjectConstants TreeBillboardsAPP::GetObjectConstants(const Object& obj)
 	{
 		ObjectConstants ret{};

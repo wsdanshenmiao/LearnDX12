@@ -121,8 +121,6 @@ namespace DSM {
 		ShaderHelper(const ShaderHelper&) = delete;
 		ShaderHelper& operator=(const ShaderHelper&) = delete;
 
-		void SetFrameCount(std::uint32_t frameCount);
-
 		void SetConstantBufferByName(const std::string& name, std::shared_ptr<D3D12ResourceLocation> cb);
 		void SetConstantBufferBySlot(std::uint32_t slot, std::shared_ptr<D3D12ResourceLocation> cb);
 		void SetShaderResourceByName(const std::string& name, const HandleArray& resource);
@@ -142,10 +140,6 @@ namespace DSM {
 
 		Microsoft::WRL::ComPtr<ID3DBlob> DXCCreateShaderFromFile(const ShaderDesc& shaderDesc, ID3D12ShaderReflection** reflection);
 		Microsoft::WRL::ComPtr<ID3DBlob> D3DCompileCreateShaderFromFile(const ShaderDesc& shaderDesc, ID3D12ShaderReflection** reflection);
-
-
-	public:
-		inline static std::uint32_t FrameCount = 3;
 
 	private:
 		struct Impl;

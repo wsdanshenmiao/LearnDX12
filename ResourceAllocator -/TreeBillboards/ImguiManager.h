@@ -12,7 +12,7 @@ namespace DSM {
 	public:
 		enum class RenderModel : int
 		{
-			Triangles, 
+			Triangles, Cylinder
 		};
 		
 		void RenderImGui(ID3D12GraphicsCommandList* cmdList) override;
@@ -28,6 +28,7 @@ namespace DSM {
 		DirectX::XMFLOAT3 m_LightDir;
 		DirectX::XMFLOAT3 m_LightColor;
 		float m_CylineHeight = 1;
+		RenderModel m_RenderModel = RenderModel::Triangles;
 	};
 }
 

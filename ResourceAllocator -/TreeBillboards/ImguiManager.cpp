@@ -10,7 +10,10 @@ namespace DSM {
 		static float lightColor[] = {1,1,1};
 		float dt = timer.DeltaTime();
 		auto io = ImGui::GetIO();
-
+		static int currModel = 0;
+		static const char* modes[] = {
+			"Triangle", "Cylinder"
+		};
 
 		if (ImGui::Begin("ImGui"))
 		{
@@ -19,7 +22,15 @@ namespace DSM {
 			ImGui::SliderFloat3("##4", lightDir, -1, 1 ,"");
 			ImGui::Text("Light Color: (%.1f, %.1f, %.1f)",m_LightColor.x, m_LightColor.y, m_LightColor.z);
 			ImGui::SliderFloat3("##5", lightColor, 0, 1,"");
-			ImGui::SliderFloat("##6", &m_CylineHeight, 0, 10,"");
+			ImGui::SliderFloat("CylineHeight: (%.1f)", &m_CylineHeight, 0, 10);
+			if (ImGui::Combo("Modes", &currModel, modes, ARRAYSIZE(modes))) {
+				if (currModel == 0) {
+					m_RenderModel = RenderModel::Triangles;
+				}
+				else if (currModel == 1) {
+					m_RenderModel = RenderModel::Cylinder;
+				}
+			}
 		}
 		ImGui::End();
 
