@@ -326,6 +326,7 @@ namespace DSM {
         shaderDefines.AddDefine("MAXDIRLIGHTCOUNT", std::to_string(max(1, numDirLight)));
         shaderDefines.AddDefine("MAXPOINTLIGHTCOUNT", std::to_string(max(1, numPointLight)));
         shaderDefines.AddDefine("MAXSPOTLIGHTCOUNT", std::to_string(max(1, numSpotLight)));
+        shaderDefines.AddDefine("ALPHATEST", "1");
         
         ShaderDesc shaderDesc{};
         shaderDesc.m_Defines = shaderDefines;
@@ -395,6 +396,8 @@ namespace DSM {
 
     void TreeBillboardsShader::SetMaterialConstants(const MaterialConstants& materialConstants)
     {
+        auto mat = materialConstants;
+        mat.m_Ambient = {mat.m_Ambient.x + 0.1f, mat.m_Ambient.y + 0.1f, mat.m_Ambient.z + 0.1f};
         DSM::SetMaterialConstants(m_ShaderHelper.get(), materialConstants);
     }
 

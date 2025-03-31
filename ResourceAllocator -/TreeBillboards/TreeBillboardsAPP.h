@@ -83,7 +83,7 @@ class TreeBillboardsAPP : public D3D12App {
     std::unique_ptr<TreeBillboardsShader> m_TreeBillboardsShader;
 
     const std::uint8_t m_TreeCount = 16;
-    const DirectX::XMFLOAT2 m_BoardSize = {10, 10};
+    const DirectX::XMFLOAT2 m_BoardSize = {16, 16};
 };
 
 

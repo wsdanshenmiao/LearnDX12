@@ -323,7 +323,7 @@ namespace DSM {
 		for (int i = 0; i < m_TreeCount; ++i)
 		{
 			treeVertices[i].m_Position = XMFLOAT3{
-				MathHelper::RandomFloat(-40, 40), 0, MathHelper::RandomFloat(-40, 40)};
+				MathHelper::RandomFloat(-40, 40), m_BoardSize.y * 0.5f, MathHelper::RandomFloat(-40, 40)};
 		}
 		const Model* treeModel = modelManager.LoadModelFromeGeometry("Tree", treeMesh);
 		auto tree = std::make_shared<Object>(treeModel->GetName(), treeModel);

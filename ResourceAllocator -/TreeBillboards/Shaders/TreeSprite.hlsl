@@ -60,7 +60,7 @@ void GS(point Attributes input[1], uint primID : SV_PrimitiveID, inout TriangleS
 
     float2 texCoords[4] = {
         float2(0, 1), float2(0, 0),
-        float2(1, 1), float2(0, 1)};
+        float2(1, 1), float2(1, 0)};
 
     Varyings o;
     matrix viewProj =  mul(gPassCB.View, gPassCB.Proj);
