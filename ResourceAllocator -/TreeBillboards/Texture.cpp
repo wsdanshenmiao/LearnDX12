@@ -227,6 +227,7 @@ namespace DSM {
 		D3D12UploadBufferAllocator* uploadAllocator)
 	{
 		auto& texResource = texture.m_Texture.m_ResourceLocation.m_UnderlyingResource->m_Resource;
+		auto& uploadBuffer = texture.m_UploadHeap;
 		
 		// 获取拷贝信息
 		std::vector<D3D12_PLACED_SUBRESOURCE_FOOTPRINT> footprint(subresources.size());	// 子资源的宽高偏移等信息
@@ -241,20 +242,24 @@ namespace DSM {
 			rowByteSize.data(), &uploadBufferSize);
 
 		// 创建GPU上传堆
-		uploadAllocator->AllocateUploadBuffer(uploadBufferSize, 0, texture.m_UploadHeap);
+		uploadAllocator->AllocateUploadBuffer(uploadBufferSize, 0, uploadBuffer);
+
 		
-		BYTE* mappedData = static_cast<BYTE*>(texture.m_UploadHeap.m_MappedBaseAddress);
+		BYTE* mappedData = static_cast<BYTE*>(uploadBuffer.m_MappedBaseAddress);
 		// 每一个子资源
 		for (std::size_t i = 0; i < subresources.size(); i++) {
 			auto destData = mappedData + footprint[i].Offset;	// 每个子资源的偏移
+			auto srcData = static_cast<const BYTE*>(subresources[i].pData);
 			// 每一个深度
 			for (std::size_t z = 0; z < footprint[i].Footprint.Depth; z++) {
 				// 每一行
-				auto sliceSize = footprint[i].Footprint.RowPitch * numRows[i] * z;
-				for (std::size_t y = 0; y < numRows[i]; y++) {
-					auto rowSize = y * subresources[i].RowPitch;
-					memcpy(destData + sliceSize + rowSize,
-						static_cast<const BYTE*>(subresources[i].pData) + sliceSize + rowSize,
+				auto destSliceSize = footprint[i].Footprint.RowPitch * numRows[i] * z;
+				auto srcSliceSize = subresources[i].SlicePitch * z;
+				for (std::size_t y = 0; y < numRows[i]; ++y) {
+					auto destRowSize = y * footprint[i].Footprint.RowPitch;
+					auto srcRowSize = y * subresources[i].RowPitch;
+					memcpy(destData + destSliceSize + destRowSize,
+						srcData + srcSliceSize + srcRowSize,
 						rowByteSize[i]);
 				}
 			}
@@ -267,12 +272,12 @@ namespace DSM {
 			dest.SubresourceIndex = i;
 			dest.pResource = texResource.Get();
 
-			auto baseOffset = texture.m_UploadHeap.m_OffsetFromBaseOfResource;
+			auto baseOffset = uploadBuffer.m_OffsetFromBaseOfResource;
 			D3D12_TEXTURE_COPY_LOCATION src{};
 			src.Type = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT;
 			src.PlacedFootprint = footprint[i];
 			src.PlacedFootprint.Offset += baseOffset;
-			src.pResource = texture.m_UploadHeap.m_UnderlyingResource->m_Resource.Get();
+			src.pResource = uploadBuffer.m_UnderlyingResource->m_Resource.Get();
 			cmdList->CopyTextureRegion(&dest,0,0,0,&src,nullptr);
 		}
 		

@@ -377,8 +377,8 @@ namespace DSM {
 				}
 			};
 		
-		setTexture("Tree", "Textures\\treeArray2.dds", m_CommandList.Get());
 		setTexture("Plane", "Textures\\grass.dds", m_CommandList.Get());
+		setTexture("Tree", "Textures\\treeArray2.dds", m_CommandList.Get());
 	}
 
 	void TreeBillboardsAPP::CreateFrameResource()
