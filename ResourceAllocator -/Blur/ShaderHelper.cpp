@@ -487,8 +487,8 @@ namespace DSM {
 
 		std::uint32_t index = 0;
 		// 绑定常量缓冲区
-		for (auto& index : m_RootParamIndexs[ParamType::CONSTANTBUFFER]) {
-			auto& cb = m_CBuffers[index];
+		for (auto& cbIndex : m_RootParamIndexs[ParamType::CONSTANTBUFFER]) {
+			auto& cb = m_CBuffers[cbIndex];
 			if (cb.m_Resource != nullptr) {
 				cb.UpdateBuffer();
 				cmdList->SetGraphicsRootConstantBufferView(index++, cb.m_Resource->m_GPUVirtualAddress);
@@ -509,8 +509,8 @@ namespace DSM {
 		ID3D12DescriptorHeap* descriptorHeaps[] = { descriptorCache->GetHeap(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV) };
 		cmdList->SetDescriptorHeaps(1, descriptorHeaps);
 
-		for (auto& index : m_RootParamIndexs[ParamType::TEXTURE]) {
-			auto& sr = m_ShaderResources[index];
+		for (auto& srIndex : m_RootParamIndexs[ParamType::TEXTURE]) {
+			auto& sr = m_ShaderResources[srIndex];
 			auto handleSize = sr.m_Handle.size();
 			std::vector<D3D12_CPU_DESCRIPTOR_HANDLE> cpuHandles(handleSize);
 			for (int i = 0; i < handleSize; ++i) {
@@ -520,8 +520,8 @@ namespace DSM {
 			auto gpuHandle = descriptorCache->AllocateAndCopy(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, cpuHandles);
 			cmdList->SetGraphicsRootDescriptorTable(index++, gpuHandle);
 		}
-		for (auto& index : m_RootParamIndexs[ParamType::UAV]) {
-			auto& rw = m_RWResources[index];
+		for (auto& rwindex : m_RootParamIndexs[ParamType::UAV]) {
+			auto& rw = m_RWResources[rwindex];
 			auto handleSize = rw.m_Handle.size();
 			std::vector<D3D12_CPU_DESCRIPTOR_HANDLE> cpuHandles(handleSize);
 			for (int i = 0; i < handleSize; ++i) {

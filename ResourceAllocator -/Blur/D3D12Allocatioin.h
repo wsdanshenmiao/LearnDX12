@@ -82,6 +82,7 @@ namespace DSM {
 	public:
 		D3D12MultiBuddyAllocator(ID3D12Device* device, D3D12BuddyAllocator::AllocatorInitData initData);
 		void Allocate(std::uint32_t size, std::uint32_t alignment, D3D12ResourceLocation& resourceLocation);
+		void Deallocate(D3D12ResourceLocation& resourceLocation);
 		void ClearUpAllocations();
 
 	private:
@@ -98,6 +99,7 @@ namespace DSM {
 			std::size_t byteSize,
 			std::uint32_t alignment,
 			D3D12ResourceLocation& resourceLocation);
+		void Deallocate(D3D12ResourceLocation& resourceLocation);
 		void ClearUpAllocations();
 
 	private:
@@ -113,6 +115,7 @@ namespace DSM {
 			std::size_t byteSize,
 			std::uint32_t alignment,
 			D3D12ResourceLocation& resourceLocation);
+		void Deallocate(D3D12ResourceLocation& resourceLocation);
 		void ClearUpAllocations();
 
 	private:
@@ -129,6 +132,7 @@ namespace DSM {
 			const D3D12_RESOURCE_STATES& textureState,
 			D3D12ResourceLocation& resourceLocation,
 			const D3D12_CLEAR_VALUE* clearValue = nullptr);
+		void Deallocate(D3D12ResourceLocation& resourceLocation);
 		void ClearUpAllocations();
 
 	private:
@@ -136,15 +140,16 @@ namespace DSM {
 		Microsoft::WRL::ComPtr<ID3D12Device> m_Device = nullptr;
 	};
 
-	class D3D12RTOrDSAllocator
+	class D3D12RenderTargetAllocator
 	{
 	public:
-		D3D12RTOrDSAllocator(ID3D12Device* device);
+		D3D12RenderTargetAllocator(ID3D12Device* device);
 		void Allocate(
 			const D3D12_RESOURCE_DESC& textureDesc,
 			const D3D12_RESOURCE_STATES& textureState,
 			D3D12ResourceLocation& resourceLocation,
 			const D3D12_CLEAR_VALUE* clearValue = nullptr);
+		void Deallocate(D3D12ResourceLocation& resourceLocation);
 		void ClearUpAllocations();
 
 	private:

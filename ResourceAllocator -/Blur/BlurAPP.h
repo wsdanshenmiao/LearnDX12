@@ -26,15 +26,18 @@ class BlurAPP : public D3D12App {
 
     void WaitForGPU();
     void RenderScene(RenderLayer layer);
+    void RenderShadow();
 
     bool InitResource();
 
     void CreateObject();
     void CreateTexture();
     void CreateFrameResource();
+    void CreateDescriptor();
 
     void UpdatePassCB(const CpuTimer& timer);
     void UpdateLightCB(const CpuTimer& timer);
+    void UpdateShadowCB(const CpuTimer& timer);
 
     MaterialConstants GetMaterialConstants(const Material& material);
     ObjectConstants GetObjectConstants(const Object& obj);
@@ -43,8 +46,6 @@ class BlurAPP : public D3D12App {
     inline static constexpr UINT FrameCount = 3;
 
    protected:
-    std::unordered_map<std::string, ComPtr<ID3DBlob>> m_ShaderByteCode;
-
     std::unique_ptr<D3D12DescriptorCache> m_ShaderDescriptorHeap;
 
     DirectX::BoundingSphere m_SceneSphere{};
@@ -53,15 +54,19 @@ class BlurAPP : public D3D12App {
     FrameResource* m_CurrFrameResource = nullptr;
 
     UINT m_CurrFrameIndex = 0;
-    DirectX::XMMATRIX m_ShadowTrans;
+
+    std::unique_ptr<D3D12RenderTargetAllocator> m_RenderTargetAllocator;
+    std::unique_ptr<D3D12TextureAllocator> m_TextureAllocator;
+
+    std::unique_ptr<DepthBuffer> m_ShadowMap;
+    std::unique_ptr<GpuBuffer> m_BlurMap;
 
     std::unique_ptr<Camera> m_Camera;
     std::unique_ptr<CameraController> m_CameraController;
 
     std::unique_ptr<LitShader> m_LitShader;
-
-    const std::uint8_t m_TreeCount = 16;
-    const DirectX::XMFLOAT2 m_BoardSize = {16, 16};
+    std::unique_ptr<ShadowShader> m_ShadowShader;
+    DirectX::XMMATRIX m_ShadowTrans;
 };
 
 

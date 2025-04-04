@@ -252,6 +252,16 @@ namespace DSM {
 		m_BuddyAllocators.push_back(newBuddyAllocator);
 	}
 
+	void D3D12MultiBuddyAllocator::Deallocate(D3D12ResourceLocation& resourceLocation)
+	{
+		for (auto& allocator : m_BuddyAllocators) {
+			if (resourceLocation.m_Allocator == allocator.get()) {
+				allocator->Deallocate(resourceLocation);
+				break;
+			}
+		}
+	}
+
 	void D3D12MultiBuddyAllocator::ClearUpAllocations()
 	{
 		for (auto& allocator : m_BuddyAllocators) {
@@ -279,6 +289,11 @@ namespace DSM {
 		m_DefaultBufferAllocator->Allocate(byteSize, alignment, resourceLocation);
 	}
 
+	void D3D12DefaultBufferAllocator::Deallocate(D3D12ResourceLocation& resourceLocation)
+	{
+		m_DefaultBufferAllocator->Deallocate(resourceLocation);
+	}
+
 	void D3D12DefaultBufferAllocator::ClearUpAllocations()
 	{
 		m_DefaultBufferAllocator->ClearUpAllocations();
@@ -301,6 +316,11 @@ namespace DSM {
 		D3D12ResourceLocation& resourceLocation)
 	{
 		m_UploadBufferAllocator->Allocate(byteSize, alignment, resourceLocation);
+	}
+
+	void D3D12UploadBufferAllocator::Deallocate(D3D12ResourceLocation& resourceLocation)
+	{
+		m_UploadBufferAllocator->Deallocate(resourceLocation);
 	}
 
 	void D3D12UploadBufferAllocator::ClearUpAllocations()
@@ -343,12 +363,17 @@ namespace DSM {
 		resourceLocation.m_GPUVirtualAddress = resourceLocation.m_UnderlyingResource->m_Resource->GetGPUVirtualAddress();
 	}
 
+	void D3D12TextureAllocator::Deallocate(D3D12ResourceLocation& resourceLocation)
+	{
+		m_TextureAllocator->Deallocate(resourceLocation);
+	}
+
 	void D3D12TextureAllocator::ClearUpAllocations()
 	{
 		m_TextureAllocator->ClearUpAllocations();
 	}
 
-	D3D12RTOrDSAllocator::D3D12RTOrDSAllocator(ID3D12Device* device)
+	D3D12RenderTargetAllocator::D3D12RenderTargetAllocator(ID3D12Device* device)
 	:m_Device(device) {
 		D3D12BuddyAllocator::AllocatorInitData initData{};
 		initData.m_HeapFlags = D3D12_HEAP_FLAG_ALLOW_ONLY_RT_DS_TEXTURES;
@@ -359,7 +384,7 @@ namespace DSM {
 		m_Allocator = std::make_unique<D3D12MultiBuddyAllocator>(m_Device.Get(), initData);
 	}
 
-	void D3D12RTOrDSAllocator::Allocate(
+	void D3D12RenderTargetAllocator::Allocate(
 		const D3D12_RESOURCE_DESC& textureDesc,
 		const D3D12_RESOURCE_STATES& textureState,
 		D3D12ResourceLocation& resourceLocation,
@@ -383,7 +408,12 @@ namespace DSM {
 		resourceLocation.m_GPUVirtualAddress = resourceLocation.m_UnderlyingResource->m_Resource->GetGPUVirtualAddress();
 	}
 
-	void D3D12RTOrDSAllocator::ClearUpAllocations()
+	void D3D12RenderTargetAllocator::Deallocate(D3D12ResourceLocation& resourceLocation)
+	{
+		m_Allocator->Deallocate(resourceLocation);
+	}
+
+	void D3D12RenderTargetAllocator::ClearUpAllocations()
 	{
 		m_Allocator->ClearUpAllocations();
 	}

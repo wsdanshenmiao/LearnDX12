@@ -22,6 +22,11 @@ namespace DSM {
     {
         D3D12DescriptorHandle m_DsvHandle;
     };
+
+    struct GpuBuffer : Buffer
+    {
+        D3D12DescriptorHandle m_UavHandle;
+    };
 }
 
 

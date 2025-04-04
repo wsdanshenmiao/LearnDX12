@@ -143,5 +143,102 @@ namespace DSM {
 
 
 
-    
+
+    ShadowShader::ShadowShader(ID3D12Device* device)
+        :IShader(device) {
+        ShaderDefines shaderDefines;
+        shaderDefines.AddDefine("ALPHATEST", "1");
+
+        ShaderDesc shaderDesc{};
+        shaderDesc.m_Target = "ps_6_1";
+        shaderDesc.m_EnterPoint = "ShadowPS";
+        shaderDesc.m_Type = ShaderType::PIXEL_SHADER;
+        shaderDesc.m_FileName = "Shaders\\Shadow.hlsl";
+        shaderDesc.m_ShaderName = "ShadowPS";
+        m_ShaderHelper->CreateShaderFormFile(shaderDesc);
+
+        shaderDesc.m_ShaderName = "ShadowPSWithAlphaTest";
+        shaderDesc.m_Defines = shaderDefines;
+        m_ShaderHelper->CreateShaderFormFile(shaderDesc);
+
+        shaderDesc.m_EnterPoint = "ShadowVS";
+        shaderDesc.m_Type = ShaderType::VERTEX_SHADER;
+        shaderDesc.m_ShaderName = "ShadowVS";
+        shaderDesc.m_Target = "vs_6_1";
+        m_ShaderHelper->CreateShaderFormFile(shaderDesc);
+
+        ShaderPassDesc shaderPassDesc{};
+        shaderPassDesc.m_VSName = "ShadowVS";
+        shaderPassDesc.m_PSName = "ShadowPS";
+        m_ShaderHelper->AddShaderPass("Shadow", shaderPassDesc, m_Device.Get());
+        shaderPassDesc.m_PSName = "ShadowWithAlphaTest";
+        m_ShaderHelper->AddShaderPass("ShadowWithAlphaTest", shaderPassDesc, m_Device.Get());
+
+        m_ShaderPasses[0] = m_ShaderHelper->GetShaderPass("Shadow");
+        m_ShaderPasses[1] = m_ShaderHelper->GetShaderPass("ShadowWithAlphaTest");
+
+        for (int i = 0; i < m_ShaderPasses.size(); i++) {
+            auto& inputLayout = VertexPosNormalTex::GetInputLayout();
+            m_ShaderPasses[i]->SetInputLayout({ inputLayout.data(), (UINT)inputLayout.size() });
+
+            D3D12_RASTERIZER_DESC rasterizerDesc{};
+            ZeroMemory(&rasterizerDesc, sizeof(D3D12_RASTERIZER_DESC));
+            rasterizerDesc.FillMode = D3D12_FILL_MODE_SOLID;
+            rasterizerDesc.CullMode = D3D12_CULL_MODE_BACK;
+            rasterizerDesc.DepthClipEnable = TRUE;
+            rasterizerDesc.DepthBias = 100000;
+            rasterizerDesc.SlopeScaledDepthBias = 1;
+            rasterizerDesc.DepthBiasClamp = 0;
+            rasterizerDesc.DepthClipEnable = TRUE;
+            m_ShaderPasses[i]->SetRasterizerState(rasterizerDesc);
+            m_ShaderPasses[i]->SetRTVFormat({ DXGI_FORMAT_UNKNOWN });       // 不需要渲染对象
+            m_ShaderPasses[i]->SetRTVFormat({});       // 不需要渲染对象
+        }
+    }
+
+    void ShadowShader::SetObjectCB(std::shared_ptr<D3D12ResourceLocation> cb)
+    {
+        m_ShaderHelper->SetConstantBufferByName("gObjCB", cb);
+    }
+
+    void ShadowShader::SetPassCB(std::shared_ptr<D3D12ResourceLocation> cb)
+    {
+        m_ShaderHelper->SetConstantBufferByName("gPassCB", cb);;
+    }
+
+    void ShadowShader::SetMaterialCB(std::shared_ptr<D3D12ResourceLocation> cb)
+    {
+        m_ShaderHelper->SetConstantBufferByName("gMatCB", cb);
+    }
+
+    void ShadowShader::SetObjectConstants(const ObjectConstants& objConstants)
+    {
+        DSM::SetObjectConstants(m_ShaderHelper.get(), objConstants);
+    }
+
+    void ShadowShader::SetPassConstants(const PassConstants& passConstants)
+    {
+        DSM::SetPassConstants(m_ShaderHelper.get(), passConstants);
+    }
+
+    void ShadowShader::SetMaterialConstants(const MaterialConstants& materialConstants)
+    {
+        DSM::SetMaterialConstants(m_ShaderHelper.get(), materialConstants);
+    }
+    void ShadowShader::SetTexture(const D3D12DescriptorHandle& texture)
+    {
+        m_ShaderHelper->SetShaderResourceByName("gDiffuse", { texture });
+    }
+
+    void ShadowShader::SetAlphaTest(bool enable)
+    {
+        if (enable != m_EnableAlphaTest) {
+            m_CurrentPass = static_cast<std::uint8_t>(enable);
+        }
+    }
+
+    void ShadowShader::Apply(ID3D12GraphicsCommandList* cmdList, FrameResource* frameResource)
+    {
+        m_ShaderPasses[m_CurrentPass]->Apply(cmdList, m_Device.Get(), frameResource);
+    }
 }

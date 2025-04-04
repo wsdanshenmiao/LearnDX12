@@ -27,8 +27,10 @@ namespace DSM {
 	public:
 		DirectX::XMFLOAT3 m_LightDir;
 		DirectX::XMFLOAT3 m_LightColor;
-		float m_CylineHeight = 1;
-		RenderModel m_RenderModel = RenderModel::Triangles;
+
+		float m_FogStart = 10;
+		float m_FogRange = 100;
+		DirectX::XMFLOAT3 m_FogColor = DirectX::XMFLOAT3(1, 1, 1);
 	};
 }
 

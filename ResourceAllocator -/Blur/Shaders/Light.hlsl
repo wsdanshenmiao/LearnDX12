@@ -10,7 +10,12 @@ ConstantBuffer<MaterialConstants> gMatCB : register(b3);
 Texture2D gDiffuse : register(t0);
 Texture2D gShadowMap : register(t1);
 
+SamplerState gSamplerPointWrap          : register(s0);
+SamplerState gSamplerLinearWrap         : register(s1);
 SamplerState gSamplerAnisotropicWrap    : register(s2);
+SamplerState gSamplerPointClamp         : register(s3);
+SamplerState gSamplerLinearClamp        : register(s4);
+SamplerState gSamplerAnisotropicClamp   : register(s5);
 SamplerComparisonState gSamplerShadowBorder : register(s6);
 
 VertexPosWHNormalWTexShadow VS(VertexPosLNormalLTex v)
@@ -45,8 +50,7 @@ float4 PS(VertexPosWHNormalWTexShadow i) : SV_Target
     [unroll]
     for (int index = 0; index < MAXDIRLIGHTCOUNT; ++index)
     {
-        //shadowFactor[index] = PCF(gSamplerShadowBorder, gShadowMap, i.ShadowPosH);
-        shadowFactor[index] = 1;
+        shadowFactor[index] = PCF(gSamplerShadowBorder, gShadowMap, i.ShadowPosH);
     }
     float3 col = ComputeLighting(gLightCB, gMatCB, viewDir, normal, i.PosW, shadowFactor);
     col += gMatCB.Ambient;
