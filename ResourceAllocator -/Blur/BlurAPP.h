@@ -1,6 +1,7 @@
 #ifndef __TREEBILLBOARDSAPP__H__
 #define __TREEBILLBOARDSAPP__H__
 
+#include "BlurShader.h"
 #include "D3D12App.h"
 #include "ObjectManager.h"
 #include "Camera.h"
@@ -59,13 +60,14 @@ class BlurAPP : public D3D12App {
     std::unique_ptr<D3D12TextureAllocator> m_TextureAllocator;
 
     std::unique_ptr<DepthBuffer> m_ShadowMap;
-    std::unique_ptr<GpuBuffer> m_BlurMap;
 
     std::unique_ptr<Camera> m_Camera;
     std::unique_ptr<CameraController> m_CameraController;
 
     std::unique_ptr<LitShader> m_LitShader;
     std::unique_ptr<ShadowShader> m_ShadowShader;
+    std::unique_ptr<BlurShader> m_BlurShader;
+ 
     DirectX::XMMATRIX m_ShadowTrans;
 };
 

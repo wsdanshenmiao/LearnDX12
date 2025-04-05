@@ -149,13 +149,13 @@ namespace DSM {
 		return dstHandle;
 	}
 
-	D3D12DescriptorHandle D3D12DescriptorHeap::Allocate()
+	D3D12DescriptorHandle D3D12DescriptorHeap::Allocate(std::uint32_t count)
 	{
-		assert(HasValidSpace(1));
+		assert(HasValidSpace(count));
 
 		auto handle = m_NextFreeHandle;
-		m_NextFreeHandle += m_DescriptorSize;
-		m_NumFreeDescriptors -= 1;
+		m_NextFreeHandle += m_DescriptorSize * count;
+		m_NumFreeDescriptors -= count;
 
 		return handle;
 	}
@@ -215,11 +215,11 @@ namespace DSM {
 		return m_DescriptorHeaps[index]->AllocateAndCopy(srcHandle);
 	}
 
-	D3D12DescriptorHandle D3D12DescriptorCache::Allocate(D3D12_DESCRIPTOR_HEAP_TYPE heapType)
+	D3D12DescriptorHandle D3D12DescriptorCache::Allocate(D3D12_DESCRIPTOR_HEAP_TYPE heapType, std::uint32_t count)
 	{
 		auto index = static_cast<int>(heapType);
 		assert(index < m_DescriptorHeaps.size());
-		return m_DescriptorHeaps[index]->Allocate();
+		return m_DescriptorHeaps[index]->Allocate(count);
 	}
 
 	void D3D12DescriptorCache::Clear()

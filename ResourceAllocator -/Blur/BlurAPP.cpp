@@ -104,7 +104,25 @@ namespace DSM {
 
 		RenderScene(RenderLayer::Opaque);
 
+		m_BlurShader->SetInputTexture(GetCurrentBackBuffer());
+		m_BlurShader->SetBlurCount(imgui.m_BlurCount);
+		m_BlurShader->Apply(m_CommandList.Get(), m_CurrFrameResource);
+		
+		D3D12_RESOURCE_BARRIER sourceToDest{};
+		sourceToDest.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+		sourceToDest.Transition = {
+			GetCurrentBackBuffer(),
+			D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES,
+			D3D12_RESOURCE_STATE_COPY_SOURCE,
+			D3D12_RESOURCE_STATE_COPY_DEST
+		};
 
+		// 将结果拷贝到后台缓冲区中
+		m_CommandList->CopyResource(GetCurrentBackBuffer(), m_BlurShader->GetOutputTexture());
+
+		auto destToRT = sourceToDest;
+		destToRT.Transition.StateBefore = D3D12_RESOURCE_STATE_COPY_DEST;
+		destToRT.Transition.StateAfter = D3D12_RESOURCE_STATE_RENDER_TARGET;
 
 		ImguiManager::GetInstance().RenderImGui(m_CommandList.Get());
 
@@ -118,6 +136,8 @@ namespace DSM {
 			D3D12_RESOURCE_STATE_PRESENT
 		};
 		m_CommandList->ResourceBarrier(1, &rtToPresent);
+
+		
 
 		ThrowIfFailed(m_CommandList->Close());
 		ID3D12CommandList* pCmdLists[] = { m_CommandList.Get() };
@@ -141,6 +161,9 @@ namespace DSM {
 		m_Camera->SetViewPort(0.0f, 0.0f, (float)m_ClientWidth, (float)m_ClientHeight);
 		m_Camera->SetFrustum(XM_PI / 3, GetAspectRatio(), 0.3, 300);
 
+		if (m_BlurShader != nullptr) {
+			m_BlurShader->OnResize(m_ClientWidth, m_ClientHeight, m_TextureAllocator.get());
+		}
 	}
 
 	void BlurAPP::WaitForGPU()
@@ -291,7 +314,9 @@ namespace DSM {
 		auto& light = LightManager::GetInstance();
 
 		m_ShadowMap = std::make_unique<DepthBuffer>();
-		m_BlurMap = std::make_unique<GpuBuffer>();
+		
+		m_RenderTargetAllocator = std::make_unique<D3D12RenderTargetAllocator>(m_D3D12Device.Get());
+		m_TextureAllocator = std::make_unique<D3D12TextureAllocator>(m_D3D12Device.Get());
 
 		m_Camera->SetViewPort(0.0f, 0.0f, (float)m_ClientWidth, (float)m_ClientHeight);
 		m_Camera->SetFrustum(XM_PI / 3, GetAspectRatio(), 0.5f, 300.0f);
@@ -306,13 +331,16 @@ namespace DSM {
 		m_LitShader = std::make_unique<LitShader>(m_D3D12Device.Get());
 		m_ShadowShader = std::make_unique<ShadowShader>(m_D3D12Device.Get());
 
-		m_RenderTargetAllocator = std::make_unique<D3D12RenderTargetAllocator>(m_D3D12Device.Get());
-		m_TextureAllocator = std::make_unique<D3D12TextureAllocator>(m_D3D12Device.Get());
 
 		CreateObject();
 		CreateTexture();
 		CreateFrameResource();
+		m_BlurShader = std::make_unique<BlurShader>(
+			m_D3D12Device.Get(), m_ClientWidth, m_ClientHeight,
+			m_BackBufferFormat, m_TextureAllocator.get(),
+			m_FrameResources[0]->m_Resources["BlurCB"]);
 		CreateDescriptor();
+		
 
 		return true;
 	}
@@ -393,6 +421,7 @@ namespace DSM {
 			objManager.CreateObjectsResource(resource.get(), sizeof(ObjectConstants), sizeof(MaterialConstants));
 			resource->AddConstantBuffer(sizeof(float), 1, "CylinderHeight");
 			resource->AddConstantBuffer(sizeof(PassConstants), 1, "ShadowMap");
+			resource->AddConstantBuffer(sizeof(float) * (BlurShader::sm_MaxBlurRadius * 2 + 1), 1, "BlurCB");
 		}
 	}
 
@@ -436,6 +465,9 @@ namespace DSM {
 		auto dsvhandle = m_ShaderDescriptorHeap->Allocate(D3D12_DESCRIPTOR_HEAP_TYPE_DSV);
 		m_D3D12Device->CreateDepthStencilView(pShadowMapResource, &smDsvDesc, dsvhandle);
 		m_ShadowMap->m_DsvHandle = dsvhandle;
+
+		auto blurHandle = m_ShaderDescriptorHeap->Allocate(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, 4);
+		m_BlurShader->CreateDescriptors(blurHandle, m_D3D12Device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV));
 	}
 
 	void BlurAPP::UpdatePassCB(const CpuTimer& timer)

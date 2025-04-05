@@ -10,15 +10,14 @@ namespace DSM {
     struct IShader
     {
     public:
-        explicit IShader(ID3D12Device* device)
-            :m_ShaderHelper(std::make_unique<ShaderHelper>()), m_Device(device){}
+        explicit IShader()
+            :m_ShaderHelper(std::make_unique<ShaderHelper>()){}
         virtual ~IShader() = default;
         
         virtual void Apply(ID3D12GraphicsCommandList* cmdList, FrameResource* frameResource) = 0;
         
     protected:
         std::unique_ptr<ShaderHelper> m_ShaderHelper;
-        Microsoft::WRL::ComPtr<ID3D12Device> m_Device;
     };
 }
 

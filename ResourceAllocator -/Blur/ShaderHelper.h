@@ -121,6 +121,7 @@ namespace DSM {
 		virtual void SetSampleDesc(std::uint32_t count, std::uint32_t quality) = 0;
 		virtual void SetDSVFormat(DXGI_FORMAT format) = 0;
 		virtual void SetRTVFormat(const std::vector<DXGI_FORMAT>& formats) = 0;
+		virtual void CreatePipelineState(ID3D12Device* device) = 0;
 		virtual const D3D12_GRAPHICS_PIPELINE_STATE_DESC& GetPSODesc() const = 0;
 
 		// 获取顶点着色器的uniform形参用于设置值
@@ -138,7 +139,7 @@ namespace DSM {
 			std::uint32_t threadX = 1,
 			std::uint32_t threadY = 1,
 			std::uint32_t threadZ = 1) = 0;
-		virtual void Apply(ID3D12GraphicsCommandList* cmdList, ID3D12Device* device, FrameResource* frameResourc) = 0;
+		virtual void Apply(ID3D12GraphicsCommandList* cmdList, FrameResource* frameResourc) = 0;
 		virtual ~IShaderPass() = default;
 	};
 
@@ -165,6 +166,8 @@ namespace DSM {
 		void SetSampleStateBySlot(const ShaderParameterIndex& index, const HandleArray& sampleState);
 
 		std::shared_ptr<IConstantBufferVariable> GetConstantBufferVariable(const std::string& name);
+		std::shared_ptr<D3D12ResourceLocation> GetShaderResourceByName(const std::string& name);
+		std::shared_ptr<D3D12ResourceLocation> GetRWResourceByName(const std::string& name);
 
 		void AddShaderPass(const std::string& shaderPassName, const ShaderPassDesc& passDesc, ID3D12Device* device);
 		std::shared_ptr<IShaderPass> GetShaderPass(const std::string& passName);

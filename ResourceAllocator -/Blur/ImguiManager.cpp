@@ -28,6 +28,9 @@ namespace DSM {
 			ImGui::SliderFloat("##7", &fogStart, 0, 1000, "");
 			ImGui::Text("Fog Range: %.2f", fogRange);
 			ImGui::SliderFloat("##8", &fogRange, 0, 5000, "");
+
+			ImGui::Text("Blur Count: %", m_BlurCount);
+			ImGui::SliderInt("##9", &m_BlurCount, 0, 10, "");
 		}
 		ImGui::End();
 

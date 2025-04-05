@@ -58,13 +58,6 @@ namespace DSM {
     };
  
 
-    class BlurShader : public IShader
-    {
-    public:
-        explicit BlurShader(ID3D12Device* device);
-
-        
-    };
 }
 
 

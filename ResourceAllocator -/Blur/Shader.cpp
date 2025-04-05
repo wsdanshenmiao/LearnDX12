@@ -45,7 +45,7 @@ namespace DSM {
         std::uint32_t numDirLight,
         std::uint32_t numPointLight,
         std::uint32_t numSpotLight)
-        :IShader(device){
+    {
         ShaderDefines shaderDefines;
         shaderDefines.AddDefine("MAXDIRLIGHTCOUNT", std::to_string(max(1, numDirLight)));
         shaderDefines.AddDefine("MAXPOINTLIGHTCOUNT", std::to_string(max(1, numPointLight)));
@@ -67,12 +67,14 @@ namespace DSM {
         ShaderPassDesc passDesc{};
         passDesc.m_VSName = "LightsVS";
         passDesc.m_PSName = "LightsPS";
-        m_ShaderHelper->AddShaderPass("Light", passDesc, m_Device.Get());
+        m_ShaderHelper->AddShaderPass("Light", passDesc, device);
 
         auto& inputLayout = VertexPosNormalTex::GetInputLayout();
         auto pass = m_ShaderHelper->GetShaderPass("Light");
         pass->SetInputLayout({inputLayout.data(), (UINT)inputLayout.size()});
         pass->SetPrimitiveTopologyType(D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE);
+        
+        pass->CreatePipelineState(device);
     }
 
     void LitShader::SetObjectCB(std::shared_ptr<D3D12ResourceLocation> cb)
@@ -138,14 +140,14 @@ namespace DSM {
     void LitShader::Apply(ID3D12GraphicsCommandList* cmdList, FrameResource* frameResource)
     {
         cmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-        m_ShaderHelper->GetShaderPass("Light")->Apply(cmdList, m_Device.Get(), frameResource);
+        m_ShaderHelper->GetShaderPass("Light")->Apply(cmdList, frameResource);
     }
 
 
 
 
     ShadowShader::ShadowShader(ID3D12Device* device)
-        :IShader(device) {
+    {
         ShaderDefines shaderDefines;
         shaderDefines.AddDefine("ALPHATEST", "1");
 
@@ -170,9 +172,9 @@ namespace DSM {
         ShaderPassDesc shaderPassDesc{};
         shaderPassDesc.m_VSName = "ShadowVS";
         shaderPassDesc.m_PSName = "ShadowPS";
-        m_ShaderHelper->AddShaderPass("Shadow", shaderPassDesc, m_Device.Get());
+        m_ShaderHelper->AddShaderPass("Shadow", shaderPassDesc, device);
         shaderPassDesc.m_PSName = "ShadowWithAlphaTest";
-        m_ShaderHelper->AddShaderPass("ShadowWithAlphaTest", shaderPassDesc, m_Device.Get());
+        m_ShaderHelper->AddShaderPass("ShadowWithAlphaTest", shaderPassDesc, device);
 
         m_ShaderPasses[0] = m_ShaderHelper->GetShaderPass("Shadow");
         m_ShaderPasses[1] = m_ShaderHelper->GetShaderPass("ShadowWithAlphaTest");
@@ -191,8 +193,10 @@ namespace DSM {
             rasterizerDesc.DepthBiasClamp = 0;
             rasterizerDesc.DepthClipEnable = TRUE;
             m_ShaderPasses[i]->SetRasterizerState(rasterizerDesc);
-            m_ShaderPasses[i]->SetRTVFormat({ DXGI_FORMAT_UNKNOWN });       // 不需要渲染对象
-            m_ShaderPasses[i]->SetRTVFormat({});       // 不需要渲染对象
+            m_ShaderPasses[i]->SetRTVFormat({ DXGI_FORMAT_UNKNOWN });
+            m_ShaderPasses[i]->SetRTVFormat({});
+
+            m_ShaderPasses[i]->CreatePipelineState(device);
         }
     }
 
@@ -239,6 +243,7 @@ namespace DSM {
 
     void ShadowShader::Apply(ID3D12GraphicsCommandList* cmdList, FrameResource* frameResource)
     {
-        m_ShaderPasses[m_CurrentPass]->Apply(cmdList, m_Device.Get(), frameResource);
+        m_ShaderPasses[m_CurrentPass]->Apply(cmdList, frameResource);
     }
+
 }

@@ -194,6 +194,9 @@ namespace DSM {
 		void SetSampleDesc(std::uint32_t count, std::uint32_t quality) override;
 		void SetDSVFormat(DXGI_FORMAT format) override;
 		void SetRTVFormat(const std::vector<DXGI_FORMAT>& formats) override;
+
+		void CreatePipelineState(ID3D12Device* device) override;
+
 		const D3D12_GRAPHICS_PIPELINE_STATE_DESC& GetPSODesc() const  override;
 
 		CBVariableSP VSGetParamByName(const std::string& paramName) override;
@@ -207,9 +210,11 @@ namespace DSM {
 		const ShaderHelper* GetShaderHelper() const override;
 		const std::string& GetPassName() const override;
 
-		void Dispatch(ID3D12GraphicsCommandList* cmdList, std::uint32_t threadX, std::uint32_t threadY,
+		void Dispatch(ID3D12GraphicsCommandList* cmdList,
+			std::uint32_t threadX,
+			std::uint32_t threadY,
 			std::uint32_t threadZ) override;
-		void Apply(ID3D12GraphicsCommandList* cmdList, ID3D12Device* device, FrameResource* frameResourc) override;
+		void Apply(ID3D12GraphicsCommandList* cmdList, FrameResource* frameResourc) override;
 
 
 
@@ -238,6 +243,9 @@ namespace DSM {
 
 	private:
 		void CreateRootSignature(ID3D12Device* device);
+		void BindResources(ID3D12GraphicsCommandList* cmdList,
+			FrameResource* frameResource,
+			bool isComput);
 		const std::array<const D3D12_STATIC_SAMPLER_DESC, 7> CreateStaticSamplers() const noexcept;
 
 	};
@@ -358,6 +366,48 @@ namespace DSM {
 		m_GraphicsPSODesc.NumRenderTargets = formats.size();
 	}
 
+	void ShaderPass::CreatePipelineState(ID3D12Device* device)
+	{
+		auto getIndex = [](const auto& type) {
+			return static_cast<int>(type);
+		};
+			
+		// 未生成根签名或PSO则生成
+		if (m_pRootSignature == nullptr) {
+			CreateRootSignature(device);
+		}
+		if (m_pGraphicsPSO == nullptr && m_ShaderInfos[getIndex(ShaderType::VERTEX_SHADER)] != nullptr) {
+			// 创建渲染管线对象
+			m_GraphicsPSODesc.pRootSignature = m_pRootSignature.Get();
+			if (auto VS = m_ShaderInfos[getIndex(ShaderType::VERTEX_SHADER)]; VS != nullptr) {
+				m_GraphicsPSODesc.VS = { VS->m_pShader->GetBufferPointer(), VS->m_pShader->GetBufferSize() };
+			}
+			if (auto HS = m_ShaderInfos[getIndex(ShaderType::HULL_SHADER)]; HS != nullptr) {
+				m_GraphicsPSODesc.HS = { HS->m_pShader->GetBufferPointer(), HS->m_pShader->GetBufferSize() };
+			}
+			if (auto DS = m_ShaderInfos[getIndex(ShaderType::DOMAIN_SHADER)]; DS != nullptr) {
+				m_GraphicsPSODesc.DS = { DS->m_pShader->GetBufferPointer(), DS->m_pShader->GetBufferSize() };
+			}
+			if (auto GS = m_ShaderInfos[getIndex(ShaderType::GEOMETRY_SHADER)]; GS != nullptr) {
+				m_GraphicsPSODesc.GS = { GS->m_pShader->GetBufferPointer(), GS->m_pShader->GetBufferSize() };
+			}
+			if (auto PS = m_ShaderInfos[getIndex(ShaderType::PIXEL_SHADER)]; PS != nullptr) {
+				m_GraphicsPSODesc.PS = { PS->m_pShader->GetBufferPointer(), PS->m_pShader->GetBufferSize() };
+			}
+
+			ThrowIfFailed(device->CreateGraphicsPipelineState(&m_GraphicsPSODesc, IID_PPV_ARGS(m_pGraphicsPSO.GetAddressOf())));
+		}
+
+		if (m_ShaderInfos[getIndex(ShaderType::COMPUTE_SHADER)] != nullptr && m_pComputePSO == nullptr) {
+			m_ComputePSODesc.pRootSignature = m_pRootSignature.Get();
+			auto CS = m_ShaderInfos[getIndex(ShaderType::COMPUTE_SHADER)]->m_pShader;
+			m_ComputePSODesc.CS = { CS->GetBufferPointer(), CS->GetBufferSize() };
+
+			ThrowIfFailed(device->CreateComputePipelineState(&m_ComputePSODesc, IID_PPV_ARGS(m_pComputePSO.GetAddressOf())));
+		}
+	}
+
+
 	const D3D12_GRAPHICS_PIPELINE_STATE_DESC& ShaderPass::GetPSODesc() const
 	{
 		return m_GraphicsPSODesc;
@@ -421,6 +471,7 @@ namespace DSM {
 		std::uint32_t threadZ)
 	{
 		assert(cmdList != nullptr);
+		assert(m_pRootSignature != nullptr);
 
 		auto pSInfo = m_ShaderInfos[static_cast<int>(ShaderType::COMPUTE_SHADER)];
 		if (pSInfo == nullptr) {
@@ -429,7 +480,7 @@ namespace DSM {
 #endif
 			return;
 		}
-
+		
 		auto pCSInfo = std::dynamic_pointer_cast<ComputeShaderInfo>(pSInfo);
 		// 将线程组数量进行对齐
 		std::uint32_t threadGroupCountX = (threadX + pCSInfo->m_ThreadGroupSizeX - 1) / pCSInfo->m_ThreadGroupSizeX;
@@ -439,98 +490,23 @@ namespace DSM {
 		cmdList->Dispatch(threadGroupCountX, threadGroupCountY, threadGroupCountZ);
 	}
 
-	void ShaderPass::Apply(ID3D12GraphicsCommandList* cmdList, ID3D12Device* device, FrameResource* frameResource)
+	void ShaderPass::Apply(ID3D12GraphicsCommandList* cmdList, FrameResource* frameResource)
 	{
 		assert(cmdList != nullptr);
-
-		auto getIndex = [](const auto& type) {
-			return static_cast<int>(type);
-			};
-
-		// 未生成根签名或PSO则生成
-		if (m_pRootSignature == nullptr || m_pGraphicsPSO == nullptr) {
-			CreateRootSignature(device);
-
-			// 创建渲染管线对象
-			m_GraphicsPSODesc.pRootSignature = m_pRootSignature.Get();
-			if (auto VS = m_ShaderInfos[getIndex(ShaderType::VERTEX_SHADER)]; VS != nullptr) {
-				m_GraphicsPSODesc.VS = { VS->m_pShader->GetBufferPointer(), VS->m_pShader->GetBufferSize() };
-			}
-			if (auto HS = m_ShaderInfos[getIndex(ShaderType::HULL_SHADER)]; HS != nullptr) {
-				m_GraphicsPSODesc.HS = { HS->m_pShader->GetBufferPointer(), HS->m_pShader->GetBufferSize() };
-			}
-			if (auto DS = m_ShaderInfos[getIndex(ShaderType::DOMAIN_SHADER)]; DS != nullptr) {
-				m_GraphicsPSODesc.DS = { DS->m_pShader->GetBufferPointer(), DS->m_pShader->GetBufferSize() };
-			}
-			if (auto GS = m_ShaderInfos[getIndex(ShaderType::GEOMETRY_SHADER)]; GS != nullptr) {
-				m_GraphicsPSODesc.GS = { GS->m_pShader->GetBufferPointer(), GS->m_pShader->GetBufferSize() };
-			}
-			if (auto PS = m_ShaderInfos[getIndex(ShaderType::PIXEL_SHADER)]; PS != nullptr) {
-				m_GraphicsPSODesc.PS = { PS->m_pShader->GetBufferPointer(), PS->m_pShader->GetBufferSize() };
-			}
-
-			ThrowIfFailed(device->CreateGraphicsPipelineState(&m_GraphicsPSODesc, IID_PPV_ARGS(m_pGraphicsPSO.GetAddressOf())));
-		}
-
-		if (m_ShaderInfos[getIndex(ShaderType::COMPUTE_SHADER)] != nullptr && m_pComputePSO == nullptr) {
-			m_ComputePSODesc.pRootSignature - m_pRootSignature.Get();
-			auto CS = m_ShaderInfos[getIndex(ShaderType::COMPUTE_SHADER)]->m_pShader;
-			m_ComputePSODesc.CS = { CS->GetBufferPointer(), CS->GetBufferSize() };
-
-			ThrowIfFailed(device->CreateComputePipelineState(&m_ComputePSODesc, IID_PPV_ARGS(m_pComputePSO.GetAddressOf())));
-		}
-
+		assert(m_pRootSignature != nullptr);
 
 		// 设置资源
-		cmdList->SetPipelineState(m_pGraphicsPSO.Get());
-		cmdList->SetGraphicsRootSignature(m_pRootSignature.Get());
-
-		std::uint32_t index = 0;
-		// 绑定常量缓冲区
-		for (auto& cbIndex : m_RootParamIndexs[ParamType::CONSTANTBUFFER]) {
-			auto& cb = m_CBuffers[cbIndex];
-			if (cb.m_Resource != nullptr) {
-				cb.UpdateBuffer();
-				cmdList->SetGraphicsRootConstantBufferView(index++, cb.m_Resource->m_GPUVirtualAddress);
-			}
+		bool isCompute = m_ShaderInfos[static_cast<int>(ShaderType::COMPUTE_SHADER)] != nullptr;
+		if (isCompute) {
+			cmdList->SetPipelineState(m_pComputePSO.Get());
+			cmdList->SetComputeRootSignature(m_pRootSignature.Get());
 		}
-		// 绑定着色器参数中的常量缓冲区
-		for (auto& shaderInfo : m_ShaderInfos) {
-			if (shaderInfo != nullptr && shaderInfo->m_pParamData != nullptr) {
-				// 更新参数常量缓冲区
-				shaderInfo->m_pParamData->UpdateBuffer();
-				cmdList->SetGraphicsRootConstantBufferView(
-					shaderInfo->m_pParamData->m_ParamIndex.m_BindPoint, shaderInfo->m_pParamData->m_Resource->m_GPUVirtualAddress);
-			}
+		else {
+			cmdList->SetPipelineState(m_pGraphicsPSO.Get());
+			cmdList->SetGraphicsRootSignature(m_pRootSignature.Get());
 		}
 
-		// 绑定着色器资源
-		auto& descriptorCache = frameResource->m_DescriptorCaches;
-		ID3D12DescriptorHeap* descriptorHeaps[] = { descriptorCache->GetHeap(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV) };
-		cmdList->SetDescriptorHeaps(1, descriptorHeaps);
-
-		for (auto& srIndex : m_RootParamIndexs[ParamType::TEXTURE]) {
-			auto& sr = m_ShaderResources[srIndex];
-			auto handleSize = sr.m_Handle.size();
-			std::vector<D3D12_CPU_DESCRIPTOR_HANDLE> cpuHandles(handleSize);
-			for (int i = 0; i < handleSize; ++i) {
-				assert(sr.m_Handle[i].IsValid());
-				cpuHandles[i] = sr.m_Handle[i];
-			}
-			auto gpuHandle = descriptorCache->AllocateAndCopy(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, cpuHandles);
-			cmdList->SetGraphicsRootDescriptorTable(index++, gpuHandle);
-		}
-		for (auto& rwindex : m_RootParamIndexs[ParamType::UAV]) {
-			auto& rw = m_RWResources[rwindex];
-			auto handleSize = rw.m_Handle.size();
-			std::vector<D3D12_CPU_DESCRIPTOR_HANDLE> cpuHandles(handleSize);
-			for (int i = 0; i < handleSize; ++i) {
-				assert(rw.m_Handle[i].IsValid());
-				cpuHandles[i] = rw.m_Handle[i];
-			}
-			auto gpuHandle = descriptorCache->AllocateAndCopy(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, cpuHandles);
-			cmdList->SetGraphicsRootDescriptorTable(index++, gpuHandle);
-		}
+		BindResources(cmdList, frameResource, isCompute);
 
 		//for (int i = 0; i < m_SamplerStates.size(); ++i) {
 		//	auto handleSize = m_SamplerStates[i].m_Handle.size();
@@ -585,7 +561,7 @@ namespace DSM {
 			rootParameter.DescriptorTable.NumDescriptorRanges = 1;
 			rootParameter.DescriptorTable.pDescriptorRanges = &range;
 			params[index++] = std::move(rootParameter);
-			m_RootParamIndexs[TEXTURE].emplace_back(paramIndex);
+			m_RootParamIndexs[ParamType::TEXTURE].emplace_back(paramIndex);
 		}
 
 		std::vector<D3D12_DESCRIPTOR_RANGE> uavDescriptorRanges{};
@@ -605,7 +581,7 @@ namespace DSM {
 			rootParameter.DescriptorTable.NumDescriptorRanges = 1;
 			rootParameter.DescriptorTable.pDescriptorRanges = &range;
 			params[index++] = std::move(rootParameter);
-			m_RootParamIndexs[TEXTURE].emplace_back(paramIndex);
+			m_RootParamIndexs[ParamType::UAV].emplace_back(paramIndex);
 		}
 
 		auto staticSamplers = CreateStaticSamplers();
@@ -635,6 +611,82 @@ namespace DSM {
 			serializedBlob->GetBufferPointer(),
 			serializedBlob->GetBufferSize(),
 			IID_PPV_ARGS(m_pRootSignature.GetAddressOf())));
+	}
+
+	void ShaderPass::BindResources(ID3D12GraphicsCommandList* cmdList,
+		FrameResource* frameResource,
+		bool isComput)
+	{
+		std::uint32_t index = 0;
+		// 绑定常量缓冲区
+		for (auto& cbIndex : m_RootParamIndexs[ParamType::CONSTANTBUFFER]) {
+			auto& cb = m_CBuffers[cbIndex];
+			if (cb.m_Resource != nullptr) {
+				cb.UpdateBuffer();
+				if (isComput) {
+					cmdList->SetComputeRootConstantBufferView(index, cb.m_Resource->m_GPUVirtualAddress);
+				}
+				else {
+					cmdList->SetGraphicsRootConstantBufferView(index, cb.m_Resource->m_GPUVirtualAddress);
+				}
+			}
+			index++;
+		}
+		// 绑定着色器参数中的常量缓冲区
+		for (auto& shaderInfo : m_ShaderInfos) {
+			if (shaderInfo != nullptr && shaderInfo->m_pParamData != nullptr) {
+				// 更新参数常量缓冲区
+				shaderInfo->m_pParamData->UpdateBuffer();
+				if (isComput) {
+					cmdList->SetComputeRootConstantBufferView(
+						shaderInfo->m_pParamData->m_ParamIndex.m_BindPoint,
+						shaderInfo->m_pParamData->m_Resource->m_GPUVirtualAddress);
+				}
+				else {
+					cmdList->SetGraphicsRootConstantBufferView(
+						shaderInfo->m_pParamData->m_ParamIndex.m_BindPoint,
+						shaderInfo->m_pParamData->m_Resource->m_GPUVirtualAddress);
+				}
+			}
+		}
+
+		// 绑定着色器资源
+		auto& descriptorCache = frameResource->m_DescriptorCaches;
+		ID3D12DescriptorHeap* descriptorHeaps[] = { descriptorCache->GetHeap(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV) };
+		cmdList->SetDescriptorHeaps(1, descriptorHeaps);
+
+		for (auto& srIndex : m_RootParamIndexs[ParamType::TEXTURE]) {
+			auto& sr = m_ShaderResources[srIndex];
+			auto handleSize = sr.m_Handle.size();
+			std::vector<D3D12_CPU_DESCRIPTOR_HANDLE> cpuHandles(handleSize);
+			for (int i = 0; i < handleSize; ++i) {
+				assert(sr.m_Handle[i].IsValid());
+				cpuHandles[i] = sr.m_Handle[i];
+			}
+			auto gpuHandle = descriptorCache->AllocateAndCopy(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, cpuHandles);
+			if (isComput) {
+				cmdList->SetComputeRootDescriptorTable(index++, gpuHandle);
+			}
+			else {
+				cmdList->SetGraphicsRootDescriptorTable(index++, gpuHandle);
+			}
+		}
+		for (auto& rwindex : m_RootParamIndexs[ParamType::UAV]) {
+			auto& rw = m_RWResources[rwindex];
+			auto handleSize = rw.m_Handle.size();
+			std::vector<D3D12_CPU_DESCRIPTOR_HANDLE> cpuHandles(handleSize);
+			for (int i = 0; i < handleSize; ++i) {
+				assert(rw.m_Handle[i].IsValid());
+				cpuHandles[i] = rw.m_Handle[i];
+			}
+			auto gpuHandle = descriptorCache->AllocateAndCopy(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, cpuHandles);
+			if (isComput) {
+				cmdList->SetComputeRootDescriptorTable(index++, gpuHandle);
+			}
+			else {
+				cmdList->SetGraphicsRootDescriptorTable(index++, gpuHandle);
+			}
+		}
 	}
 
 	const std::array<const D3D12_STATIC_SAMPLER_DESC, 7> ShaderPass::CreateStaticSamplers() const noexcept
@@ -746,13 +798,15 @@ namespace DSM {
 
 	void ShaderHelper::Impl::GetShaderInfo(std::string name, ShaderType shaderType, ID3D12ShaderReflection* shaderReflection)
 	{
+		auto infoName = std::to_string(static_cast<int>(shaderType)) + name;
+		
 		ComPtr<ID3D12ShaderReflection> pReflection = shaderReflection;
 
 		D3D12_SHADER_DESC shaderDesc{};
 		ThrowIfFailed(pReflection->GetDesc(&shaderDesc));
 
 		if (shaderType == ShaderType::COMPUTE_SHADER) {
-			auto SInfo = m_ShaderInfo[name];
+			auto SInfo = m_ShaderInfo[infoName];
 			auto CSInfo = std::dynamic_pointer_cast<ComputeShaderInfo>(SInfo);
 			pReflection->GetThreadGroupSize(
 				&CSInfo->m_ThreadGroupSizeX,

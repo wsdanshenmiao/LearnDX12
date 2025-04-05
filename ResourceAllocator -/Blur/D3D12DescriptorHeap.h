@@ -52,7 +52,7 @@ namespace DSM {
         bool HasValidSpace(std::uint32_t numDescriptors) const noexcept;
         bool IsValidHandle(const D3D12DescriptorHandle& handle) const noexcept;
         D3D12DescriptorHandle AllocateAndCopy(const std::vector<D3D12_CPU_DESCRIPTOR_HANDLE>& srcHandle);
-        D3D12DescriptorHandle Allocate();
+        D3D12DescriptorHandle Allocate(std::uint32_t count = 1);
         
         ID3D12DescriptorHeap* GetHeap() const noexcept;
         std::uint32_t GetOffsetOfHandle(const D3D12DescriptorHandle& handle) const noexcept; 
@@ -81,7 +81,7 @@ namespace DSM {
         D3D12DescriptorHandle AllocateAndCopy(
             D3D12_DESCRIPTOR_HEAP_TYPE heapType,
             const std::vector<D3D12_CPU_DESCRIPTOR_HANDLE>& srcHandle);
-        D3D12DescriptorHandle Allocate(D3D12_DESCRIPTOR_HEAP_TYPE heapType);
+        D3D12DescriptorHandle Allocate(D3D12_DESCRIPTOR_HEAP_TYPE heapType, std::uint32_t count = 1);
         void Clear();
         
     private:

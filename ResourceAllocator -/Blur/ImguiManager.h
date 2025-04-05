@@ -31,6 +31,8 @@ namespace DSM {
 		float m_FogStart = 10;
 		float m_FogRange = 100;
 		DirectX::XMFLOAT3 m_FogColor = DirectX::XMFLOAT3(1, 1, 1);
+
+		int m_BlurCount = 1;
 	};
 }
 
